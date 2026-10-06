@@ -34,7 +34,7 @@ const INDEX_LABELS: Record<string, string> = {
   '^SOX': '費半',
 }
 
-export const DEFAULT_WATCHLIST = ['t00', '2330', '0050']
+export const DEFAULT_WATCHLIST = ['SPY', 'QQQ', 'NVDA', 'AAPL']
 
 /** Taiwan codes start with a digit (2330, 00631L) or are an index (t00, o00); everything else is US. */
 export const marketOf = (code: string): Market => (/^\d/.test(code) || code === 't00' || code === 'o00' ? 'tw' : 'us')

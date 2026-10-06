@@ -1,6 +1,6 @@
 # Claude Code Stock Ticker
 
-[繁體中文](README.md) | **English**
+**English** | [繁體中文](README.zh-TW.md)
 
 **Claude writes the code. You watch the market.**
 
@@ -38,7 +38,7 @@ Requires Claude Code 2.1.287 or later.
 /stock off                  hide (/stock on to show)
 ```
 
-The default watchlist is TAIEX, 2330 and 0050, up to 10 symbols.
+The default watchlist is SPY, QQQ, NVDA and AAPL, up to 10 symbols.
 
 ## Settings
 

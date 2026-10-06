@@ -1,6 +1,6 @@
 # Claude Code Stock Ticker
 
-**繁體中文** | [English](README.en.md)
+[English](README.md) | **繁體中文**
 
 **Claude 在寫 code，你在看盤。**
 
@@ -38,7 +38,7 @@
 /stock off                  隱藏（/stock on 顯示）
 ```
 
-預設自選股是加權、2330、0050，最多 10 檔。
+預設自選股是 SPY、QQQ、NVDA、AAPL，最多 10 檔。
 
 ## 設定
 
