@@ -38,7 +38,13 @@
 /stock off                  隱藏（/stock on 顯示）
 ```
 
-預設自選股是 SPY、QQQ、NVDA、AAPL，最多 10 檔。
+預設自選股是 SPY、QQQ、NVDA、AAPL，最多 10 檔。想看台股的話：
+
+```
+/stock add 加權 櫃買         加權指數、櫃買指數
+/stock add 2330 0050 2454   台股代號、ETF 代號直接輸入
+/stock rm all               先清空預設的美股，再加入自己的
+```
 
 ## 設定
 
