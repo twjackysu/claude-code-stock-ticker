@@ -9,7 +9,7 @@
 ![使用方法](docs/demo.gif)
 
 - 台股上市、上櫃、ETF、加權、櫃買，美股個股與道瓊、標普、那斯達克、費半
-- 盤中每 5 秒更新，大漲大跌跳通知
+- 盤中每 15 秒更新（最快 5 秒），大漲大跌跳通知
 - CLI 和桌面版都能用，裝好不用設定
 
 ## 安裝
@@ -42,21 +42,14 @@
 
 ## 設定
 
-可以調整的設定：
+用 `/stock` 指令修改，立即生效，跨 session 保留：
 
-| 設定 | 預設 | 說明 |
-| --- | --- | --- |
-| `refreshSeconds` 台股更新秒數 | `5` | 最少 5 秒 |
-| `usRefreshSeconds` 美股更新秒數 | `5` | 最少 5 秒 |
-| `colors` 漲跌顏色 | `red-up` | `red-up` 紅漲綠跌，`green-up` 綠漲紅跌 |
-| `alertPercent` 通知門檻（%） | `3` | 每檔每天最多通知一次，`0` 關閉 |
-
-**CLI** 在 Claude Code 裡輸入 `/plugin configure stock-ticker` 修改。
-
-**桌面版**在終端機（PowerShell、Terminal）執行這行，改完重開 Claude Code：
-
-```bash
-echo '{"refreshSeconds":"10"}' | claude plugin configure stock-ticker@claude-code-stock-ticker --values-stdin
+```
+/stock refresh 5            美股每 5 秒更新（預設 15 秒，最少 5 秒）
+/stock refresh tw 10        台股每 10 秒更新（預設 15 秒，最少 5 秒）
+/stock color green-up       綠漲紅跌；red-up（預設）是紅漲綠跌
+/stock alert 5              漲跌超過 5% 時通知，每檔每天一次（預設 3，0 關閉）
+/stock settings             顯示目前設定
 ```
 
 ## 更新

@@ -9,7 +9,7 @@ Live Taiwan and US stock quotes right above your Claude Code prompt, so you can 
 ![How it works](docs/demo.gif)
 
 - Taiwan stocks, ETFs and indices; US stocks plus the Dow, S&P 500, Nasdaq and SOX
-- Refreshes every 5 seconds during market hours, with a toast on big moves
+- Refreshes every 15 seconds during market hours (down to 5), with a toast on big moves
 - Works in the CLI and the desktop app, no setup needed
 
 ## Install
@@ -42,21 +42,14 @@ The default watchlist is SPY, QQQ, NVDA and AAPL, up to 10 symbols.
 
 ## Settings
 
-Available settings:
+Change them with `/stock`; they apply at once and are kept across sessions:
 
-| Setting | Default | |
-| --- | --- | --- |
-| `refreshSeconds` | `5` | Taiwan refresh interval in seconds, minimum 5 |
-| `usRefreshSeconds` | `5` | US refresh interval in seconds, minimum 5 |
-| `colors` | `red-up` | `red-up` for red gains, `green-up` for green gains |
-| `alertPercent` | `3` | Toast once a day per symbol past this move; `0` turns alerts off |
-
-**CLI**: type `/plugin configure stock-ticker` inside Claude Code.
-
-**Desktop app**: run this in a terminal, then restart Claude Code:
-
-```bash
-echo '{"refreshSeconds":"10"}' | claude plugin configure stock-ticker@claude-code-stock-ticker --values-stdin
+```
+/stock refresh 5            US quotes every 5 seconds (default 15, minimum 5)
+/stock refresh tw 10        Taiwan quotes every 10 seconds (default 15, minimum 5)
+/stock color green-up       green for gains; red-up (the default) is red for gains, as in Taiwan
+/stock alert 5              toast once a day when a symbol moves 5% or more (default 3, 0 turns it off)
+/stock settings             show the current settings
 ```
 
 ## Update

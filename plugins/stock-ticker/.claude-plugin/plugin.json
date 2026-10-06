@@ -1,35 +1,10 @@
 {
   "name": "stock-ticker",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "Live stock ticker band above the Claude Code prompt: watch Taiwan and US quotes while Claude works.",
-  "author": { "name": "twjackysu" },
+  "author": {
+    "name": "twjackysu"
+  },
   "license": "MIT",
-  "types": "./types/index.d.ts",
-  "userConfig": {
-    "refreshSeconds": {
-      "type": "number",
-      "title": "Taiwan refresh interval (seconds)",
-      "description": "How often Taiwan quotes refresh during market hours. Minimum 5.",
-      "default": 5
-    },
-    "usRefreshSeconds": {
-      "type": "number",
-      "title": "US refresh interval (seconds)",
-      "description": "How often US quotes refresh during market hours. Minimum 5.",
-      "default": 5
-    },
-    "colors": {
-      "type": "string",
-      "title": "Up/down colors",
-      "description": "red-up: red for gains (Taiwan/China/Japan convention). green-up: green for gains (US/EU convention).",
-      "default": "red-up",
-      "options": ["red-up", "green-up"]
-    },
-    "alertPercent": {
-      "type": "number",
-      "title": "Alert threshold (%)",
-      "description": "Toast once a day when a symbol moves at least this much. 0 turns alerts off.",
-      "default": 3
-    }
-  }
+  "types": "./types/index.d.ts"
 }

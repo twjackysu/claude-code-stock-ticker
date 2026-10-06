@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, Timer } from 'claude-code'
 
-import type { Quote } from '../types'
+import type { Quote, TickerSettings } from '../types'
 import type { Market } from './quotes'
 import {
   DEFAULT_WATCHLIST,
@@ -18,12 +18,17 @@ import {
   yahooUrl,
 } from './quotes'
 
+const DEFAULT_SETTINGS: TickerSettings = { refreshSeconds: { tw: 15, us: 15 }, colors: 'red-up', alertPercent: 3 }
+const MIN_REFRESH_SECONDS = 5
+
 const quotes = atom({ plugin: 'stock-ticker', key: 'quotes' } as const, [] as Quote[])
 const isHidden = atom({ plugin: 'stock-ticker', key: 'isHidden' } as const, false)
 const error = atom({ plugin: 'stock-ticker', key: 'error' } as const, null as string | null)
+const settings = atom({ plugin: 'stock-ticker', key: 'settings' } as const, DEFAULT_SETTINGS)
 
 const WATCHLIST_KEY = 'watchlist'
 const HIDDEN_KEY = 'hidden'
+const SETTINGS_KEY = 'settings'
 const MAX_SYMBOLS = 10
 
 async function loadWatchlist($: EngineInterface): Promise<string[]> {
@@ -32,17 +37,58 @@ async function loadWatchlist($: EngineInterface): Promise<string[]> {
   return Array.isArray(stored) ? stored.filter((s): s is string => typeof s === 'string') : DEFAULT_WATCHLIST
 }
 
+/** The stored settings over the defaults, each field checked so a bad value falls back. */
+async function loadSettings($: EngineInterface): Promise<TickerSettings> {
+  const stored = ((await $.store.get(SETTINGS_KEY)) ?? {}) as Partial<TickerSettings>
+  const seconds = (value: unknown, fallback: number) =>
+    typeof value === 'number' && value >= MIN_REFRESH_SECONDS ? value : fallback
+
+  return {
+    refreshSeconds: {
+      tw: seconds(stored.refreshSeconds?.tw, DEFAULT_SETTINGS.refreshSeconds.tw),
+      us: seconds(stored.refreshSeconds?.us, DEFAULT_SETTINGS.refreshSeconds.us),
+    },
+    colors: stored.colors === 'green-up' ? 'green-up' : DEFAULT_SETTINGS.colors,
+    alertPercent:
+      typeof stored.alertPercent === 'number' && stored.alertPercent >= 0 ? stored.alertPercent : DEFAULT_SETTINGS.alertPercent,
+  }
+}
+
+async function saveSettings($: EngineInterface, change: (current: TickerSettings) => TickerSettings): Promise<TickerSettings> {
+  const next = change(await read($, settings))
+  await $.store.set(SETTINGS_KEY, next)
+  await update($, settings, () => next)
+
+  return next
+}
+
 const MARKETS: readonly Market[] = ['tw', 'us']
 const MARKET_NAMES: Record<Market, string> = { tw: '台股 Taiwan', us: '美股 US' }
 // Replies read in Chinese then English, for both audiences.
 const listText = (codes: readonly string[]) => `自選股 Watchlist：${codes.join(' ') || '(空 empty)'}`
+const refreshText = (s: TickerSettings) => `更新秒數 Refresh：美股 US ${s.refreshSeconds.us}s，台股 Taiwan ${s.refreshSeconds.tw}s`
+const colorsText = (s: TickerSettings) => `漲跌顏色 Colors：${s.colors === 'red-up' ? '紅漲綠跌 red-up' : '綠漲紅跌 green-up'}`
+const alertText = (s: TickerSettings) =>
+  s.alertPercent > 0 ? `通知門檻 Alert：${s.alertPercent}%` : '通知已關閉 Alerts off'
+const USAGE = [
+  '用法 Usage：',
+  '/stock add 2330 NVDA | /stock rm 2330 | /stock rm all | /stock list | /stock on | /stock off',
+  '/stock refresh 5 | /stock refresh tw 10 | /stock color green-up | /stock alert 5 | /stock settings',
+].join('\n')
 
 /** This session's polling per market, and which big-move toasts already fired today. */
 type Poll = {
-  refreshMs: Record<Market, number>
-  alertPercent: number
+  timers: Partial<Record<Market, Timer>>
   isFetching: Record<Market, boolean>
   alerted: Set<string>
+}
+
+/** (Re)starts each market's timer at its current interval. */
+function startTimers($: EngineInterface, poll: Poll, current: TickerSettings) {
+  for (const market of MARKETS) {
+    poll.timers[market]?.cancel()
+    poll.timers[market] = $.clock.every(current.refreshSeconds[market] * 1000, () => void refresh($, poll, market))
+  }
 }
 
 /** Taiwan quotes come from TWSE MIS; US quotes from Yahoo Finance, which refuses requests without a browser User-Agent. */
@@ -101,7 +147,7 @@ async function refresh($: EngineInterface, poll: Poll, market: Market, { force =
     const fresh = await fetchQuotes($, market, codes, now)
     await update($, quotes, merge(fresh))
     await update($, error, () => null)
-    notifyBigMoves($, poll, fresh, now)
+    notifyBigMoves($, poll, (await read($, settings)).alertPercent, fresh, now)
   } catch (reason) {
     const message = reason instanceof Error ? reason.message : String(reason)
     await update($, error, () => `${MARKET_NAMES[market]}：${message}`)
@@ -114,12 +160,12 @@ async function refreshAll($: EngineInterface, poll: Poll, { force = false } = {}
   await Promise.all(MARKETS.map(market => refresh($, poll, market, { force })))
 }
 
-function notifyBigMoves($: EngineInterface, poll: Poll, list: Quote[], now: number) {
-  if (poll.alertPercent <= 0) return
+function notifyBigMoves($: EngineInterface, poll: Poll, alertPercent: number, list: Quote[], now: number) {
+  if (alertPercent <= 0) return
   const day = taipeiDay(now)
   for (const quote of list) {
     const id = `${day}:${quote.symbol}`
-    if (Math.abs(quote.changePercent) < poll.alertPercent || poll.alerted.has(id)) continue
+    if (Math.abs(quote.changePercent) < alertPercent || poll.alerted.has(id)) continue
     poll.alerted.add(id)
     $.ui.toast(`${quote.label} ${formatPrice(quote.price)} ${formatChange(quote.changePercent)}`)
   }
@@ -139,29 +185,22 @@ function fitRow(list: Quote[], columns: number, gap: number): Quote[] {
   return shown
 }
 
-export const register: Register = (on, options) => {
-  const isRedUp = options.colors !== 'green-up'
-  const poll: Poll = {
-    refreshMs: {
-      tw: Math.max(5, Number(options.refreshSeconds ?? 5)) * 1000,
-      us: Math.max(5, Number(options.usRefreshSeconds ?? 5)) * 1000,
-    },
-    alertPercent: Number(options.alertPercent ?? 3),
-    isFetching: { tw: false, us: false },
-    alerted: new Set(),
-  }
+export const register: Register = on => {
+  const poll: Poll = { timers: {}, isFetching: { tw: false, us: false }, alerted: new Set() }
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'stock',
-      description: 'Stock ticker: add/remove Taiwan or US symbols, show or hide the band',
-      argumentHint: 'add 2330 NVDA | rm 2330 | rm all | list | on | off',
+      description: 'Stock ticker: add/remove Taiwan or US symbols, change refresh, colors and alerts',
+      argumentHint: 'add 2330 NVDA | rm 2330 | rm all | list | refresh 5 | color green-up | alert 5 | settings | on | off',
     })
     const wasHidden = (await $.store.get(HIDDEN_KEY)) === true
     await update($, isHidden, () => wasHidden)
+    const loaded = await loadSettings($)
+    await update($, settings, () => loaded)
 
     void refreshAll($, poll, { force: true })
-    for (const market of MARKETS) $.clock.every(poll.refreshMs[market], () => void refresh($, poll, market))
+    startTimers($, poll, loaded)
 
     return next(e)
   })
@@ -199,6 +238,46 @@ export const register: Register = (on, options) => {
       return { text: [listText(nextList), ...notes].join('\n') }
     }
 
+    if (verb === 'refresh') {
+      // `/stock refresh 5` sets the US; `/stock refresh tw 10` Taiwan.
+      const named = rest[0] === 'tw' || rest[0] === 'us' ? rest[0] : undefined
+      const market: Market = named ?? 'us'
+      const seconds = Number(named ? rest[1] : rest[0])
+      if (!Number.isFinite(seconds) || seconds < MIN_REFRESH_SECONDS) {
+        return { text: `秒數要 ${MIN_REFRESH_SECONDS} 以上 Seconds must be ${MIN_REFRESH_SECONDS} or more：/stock refresh 5 | /stock refresh tw 10` }
+      }
+      const next = await saveSettings($, s => ({ ...s, refreshSeconds: { ...s.refreshSeconds, [market]: seconds } }))
+      startTimers($, poll, next)
+
+      return { text: refreshText(next) }
+    }
+
+    if (verb === 'color' || verb === 'colors') {
+      const choice = rest[0]?.toLowerCase()
+      if (choice !== 'red-up' && choice !== 'green-up') {
+        return { text: '用 red-up（紅漲綠跌）或 green-up（綠漲紅跌） Use red-up or green-up：/stock color green-up' }
+      }
+      const next = await saveSettings($, s => ({ ...s, colors: choice }))
+
+      return { text: colorsText(next) }
+    }
+
+    if (verb === 'alert') {
+      const percent = Number(rest[0])
+      if (!Number.isFinite(percent) || percent < 0) {
+        return { text: '門檻要 0 以上，0 關閉 Use 0 or more, 0 turns alerts off：/stock alert 5' }
+      }
+      const next = await saveSettings($, s => ({ ...s, alertPercent: percent }))
+
+      return { text: alertText(next) }
+    }
+
+    if (verb === 'settings') {
+      const current = await read($, settings)
+
+      return { text: [refreshText(current), colorsText(current), alertText(current)].join('\n') }
+    }
+
     if (verb === 'on' || verb === 'off') {
       await $.store.set(HIDDEN_KEY, verb === 'off')
       await update($, isHidden, () => verb === 'off')
@@ -217,7 +296,7 @@ export const register: Register = (on, options) => {
       return { text: lines.length > 0 ? lines.join('\n') : listText(watchlist) }
     }
 
-    return { text: '用法 Usage：/stock add 2330 NVDA | /stock rm 2330 | /stock rm all | /stock list | /stock on | /stock off' }
+    return { text: USAGE }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -225,6 +304,7 @@ export const register: Register = (on, options) => {
 
     const list = await read($, quotes)
     const failure = await read($, error)
+    const isRedUp = (await read($, settings)).colors === 'red-up'
     const { Box, Text } = $.ui.resolve(e)
 
     if (list.length === 0) {

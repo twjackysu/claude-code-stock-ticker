@@ -161,14 +161,20 @@ describe('band', () => {
     }
   })
 
-  test('green-up flips the colors', { options: { colors: 'green-up' } }, async ($, on) => {
+  test('/stock color green-up flips the colors at once', async ($, on) => {
     const { clock } = setup(on, ['2330'])
-
     await $.session.start(START)
     await clock.settle()
     const ui = await $.ui.mount({ plugin: 'stock-ticker', surface: 'terminal', ...BAND })
+    expect((await ui.find({ type: 'Text', text: '▲0.39%' }))?.props.color).toBe('red')
+
+    const set = await $.command.run({ command: 'stock', args: 'color green-up' } as never)
+    expect(set).toMatchObject({ text: '漲跌顏色 Colors：綠漲紅跌 green-up' })
     expect((await ui.find({ type: 'Text', text: '▲0.39%' }))?.props.color).toBe('green')
     await ui.unmount()
+
+    const wrong = await $.command.run({ command: 'stock', args: 'color blue' } as never)
+    expect(wrong).toMatchObject({ text: expect.stringContaining('green-up') })
   })
 
   test('/stock add and rm edit the stored watchlist', async ($, on) => {
@@ -217,7 +223,8 @@ describe('band', () => {
     await clock.settle()
 
     await clock.advance(30 * 60_000)
-    expect(calls.mis).toBe(1 + 360)
+    // Every 15 seconds by default.
+    expect(calls.mis).toBe(1 + 120)
   })
 
   test('a desktop session polls while on screen and stops once switched away', async ($, on) => {
@@ -229,7 +236,7 @@ describe('band', () => {
     // On screen: polls past the idle limit, no prompt needed.
     await clock.advance(10 * 60_000)
     const watched = calls.mis
-    expect(watched).toBeGreaterThan(100)
+    expect(watched).toBe(1 + 40)
 
     await $.session.detach({ surface: 'desktop', clientId: 'desktop:default', reason: 'detach' })
     await clock.advance(60_000)
@@ -239,7 +246,7 @@ describe('band', () => {
     await $.session.attach({ surface: 'desktop', clientId: 'desktop:default' })
     await clock.settle()
     expect(calls.mis).toBe(watched)
-    await clock.advance(10_000)
+    await clock.advance(30_000)
     expect(calls.mis).toBe(watched + 2)
   })
 
@@ -255,21 +262,47 @@ describe('band', () => {
     await ui.unmount()
   })
 
-  test('US quotes poll every 5 seconds while New York trades, Taiwan rests', async ($, on) => {
+  test('US quotes poll every 15 seconds while New York trades, Taiwan rests', async ($, on) => {
     const { clock, calls } = setup(on, ['2330', 'NVDA'], ['terminal'], US_OPEN)
     await $.session.start(START)
     await clock.settle()
     expect(calls).toEqual({ mis: 1, yahoo: 1 })
 
     await clock.advance(60_000)
-    expect(calls).toEqual({ mis: 1, yahoo: 13 })
+    expect(calls).toEqual({ mis: 1, yahoo: 5 })
   })
 
-  test('the US interval has its own setting', { options: { usRefreshSeconds: 30 } }, async ($, on) => {
+  test('/stock refresh sets the US interval, /stock refresh tw the Taiwan one', async ($, on) => {
     const { clock, calls } = setup(on, ['NVDA'], ['terminal'], US_OPEN)
     await $.session.start(START)
+    await clock.settle()
+
+    const us = await $.command.run({ command: 'stock', args: 'refresh 30' } as never)
+    expect(us).toMatchObject({ text: '更新秒數 Refresh：美股 US 30s，台股 Taiwan 15s' })
     await clock.advance(60_000)
     expect(calls.yahoo).toBe(1 + 2)
+
+    const tw = await $.command.run({ command: 'stock', args: 'refresh tw 10' } as never)
+    expect(tw).toMatchObject({ text: '更新秒數 Refresh：美股 US 30s，台股 Taiwan 10s' })
+
+    const tooFast = await $.command.run({ command: 'stock', args: 'refresh 1' } as never)
+    expect(tooFast).toMatchObject({ text: expect.stringContaining('Seconds must be 5 or more') })
+  })
+
+  test('settings survive into the next session', async ($, on) => {
+    mock.store(on, { watchlist: ['2330'], settings: { refreshSeconds: { tw: 20, us: 8 }, colors: 'green-up', alertPercent: 0 } })
+    const clock = mock.clock(on, { now: MARKET_OPEN })
+    on('http.fetch', async () => ({ value: { status: 200, ok: true, headers: {}, text: MIS } }))
+    on('command.register', async ($, e) => ({ value: { command: e.name } }))
+    on('session.surfaces', async () => ({ value: ['terminal'] }))
+    on('session.start', async ($, e) => ({ cwd: e.cwd }))
+    await $.session.start(START)
+    await clock.settle()
+
+    const shown = await $.command.run({ command: 'stock', args: 'settings' } as never)
+    expect(shown).toMatchObject({
+      text: '更新秒數 Refresh：美股 US 8s，台股 Taiwan 20s\n漲跌顏色 Colors：綠漲紅跌 green-up\n通知已關閉 Alerts off',
+    })
   })
 
   test('an older Yahoo snapshot never replaces a newer quote', async ($, on) => {
@@ -284,7 +317,7 @@ describe('band', () => {
     on('session.surfaces', async () => ({ value: ['terminal'] }))
     on('session.start', async ($, e) => ({ cwd: e.cwd }))
     await $.session.start(START)
-    await clock.advance(5_000)
+    await clock.advance(15_000)
 
     const listed = await $.command.run({ command: 'stock', args: 'list' } as never)
     expect(listed).toMatchObject({ text: 'NVDA 250 ▲25.00%' })
