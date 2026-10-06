@@ -58,6 +58,16 @@
 echo '{"refreshSeconds":"10"}' | claude plugin configure stock-ticker@claude-code-stock-ticker --values-stdin
 ```
 
+## 更新
+
+第三方 plugin 預設不會自動更新。CLI 在 Claude Code 裡輸入 `/plugin`，到 **Installed** 選 stock-ticker 按 **Update now**；想自動更新的話，到 **Marketplaces** 選 claude-code-stock-ticker 按 **Enable auto-update**。
+
+也可以在終端機執行：
+
+```bash
+claude plugin update stock-ticker@claude-code-stock-ticker
+```
+
 ## 搭配 TWSEMCPServer
 
 想讓 Claude 幫你查更深入的台股資料（個股日 K、三大法人、月營收、重大訊息⋯），可以另外安裝 [TWSEMCPServer](https://github.com/twjackysu/TWSEMCPServer)。兩個各自獨立，自由搭配：

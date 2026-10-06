@@ -9,7 +9,7 @@
       "name": "stock-ticker",
       "source": "./plugins/stock-ticker",
       "description": "Live stock ticker band above the Claude Code prompt: watch Taiwan and US quotes while Claude works.",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "license": "MIT",
       "keywords": ["stock", "taiwan", "twse", "tpex", "us", "nasdaq", "ticker", "mod"]
     }

@@ -58,6 +58,16 @@ Available settings:
 echo '{"refreshSeconds":"10"}' | claude plugin configure stock-ticker@claude-code-stock-ticker --values-stdin
 ```
 
+## Update
+
+Third-party plugins don't update on their own by default. In the CLI, type `/plugin`, open **Installed**, select stock-ticker and choose **Update now**. To update automatically, open **Marketplaces**, select claude-code-stock-ticker and choose **Enable auto-update**.
+
+Or run this in a terminal:
+
+```bash
+claude plugin update stock-ticker@claude-code-stock-ticker
+```
+
 ## Pair with TWSEMCPServer
 
 For deeper Taiwan market data in Claude (daily candles, institutional trading, monthly revenue, company announcements and more), install [TWSEMCPServer](https://github.com/twjackysu/TWSEMCPServer) separately. The two are independent, so use either or both:
