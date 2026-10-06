@@ -101,7 +101,7 @@ describe('quotes', () => {
   test('parses Yahoo rows, falling back to the last close', () => {
     const quotes = parseYahoo(YAHOO, ['^SOX', 'NVDA', 'AAPL'])
     expect(quotes.map(q => q.symbol)).toEqual(['^SOX', 'NVDA'])
-    expect(quotes[0]?.label).toBe('費半')
+    expect(quotes[0]?.label).toBe('SOX')
     expect(quotes[0]?.changePercent.toFixed(2)).toBe('-2.00')
     expect(quotes[1]?.changePercent.toFixed(2)).toBe('1.45')
     expect(decodeURIComponent(yahooUrl(['NVDA', '^SOX'], 1234))).toContain('symbols=NVDA,^SOX&')

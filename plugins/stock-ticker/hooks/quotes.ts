@@ -19,6 +19,7 @@ const INDEX_ALIASES: Record<string, string> = {
   標普: '^GSPC',
   標普500: '^GSPC',
   spx: '^GSPC',
+  sp500: '^GSPC',
   那斯達克: '^IXIC',
   nasdaq: '^IXIC',
   費半: '^SOX',
@@ -28,10 +29,10 @@ const INDEX_ALIASES: Record<string, string> = {
 const INDEX_LABELS: Record<string, string> = {
   t00: '加權',
   o00: '櫃買',
-  '^DJI': '道瓊',
-  '^GSPC': '標普500',
-  '^IXIC': '那斯達克',
-  '^SOX': '費半',
+  '^DJI': 'Dow',
+  '^GSPC': 'S&P 500',
+  '^IXIC': 'Nasdaq',
+  '^SOX': 'SOX',
 }
 
 export const DEFAULT_WATCHLIST = ['SPY', 'QQQ', 'NVDA', 'AAPL']
