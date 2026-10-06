@@ -16,13 +16,7 @@
 
 需要 Claude Code 2.1.287 以上。
 
-**終端機貼上這一行**（終端機版、桌面版都適用，裝好後新開的 session 就會出現）：
-
-```bash
-claude plugin marketplace add twjackysu/claude-code-stock-ticker && claude plugin install stock-ticker@claude-code-stock-ticker
-```
-
-**終端機版**也可以在 Claude Code 裡輸入：
+**終端機版**在 Claude Code 裡輸入：
 
 ```
 /plugin marketplace add twjackysu/claude-code-stock-ticker
@@ -30,7 +24,7 @@ claude plugin marketplace add twjackysu/claude-code-stock-ticker && claude plugi
 /reload-plugins
 ```
 
-**桌面版**也可以在 plugin 設定畫面手動加入 marketplace `https://github.com/twjackysu/claude-code-stock-ticker.git`，再安裝 **stock-ticker**。
+**桌面版**在 plugin 設定畫面加入 marketplace `https://github.com/twjackysu/claude-code-stock-ticker.git`，再安裝 **stock-ticker**。
 
 ## 用法
 
@@ -53,13 +47,13 @@ claude plugin marketplace add twjackysu/claude-code-stock-ticker && claude plugi
 | `colors` 漲跌顏色 | `red-up` | `red-up` 紅漲綠跌，`green-up` 綠漲紅跌 |
 | `alertPercent` 通知門檻（%） | `3` | 每檔每天最多通知一次，`0` 關閉 |
 
-在終端機用這行修改（終端機版、桌面版都適用，改完重開 Claude Code）：
+**終端機版**在 Claude Code 裡輸入 `/plugin configure stock-ticker` 修改。
+
+**桌面版**在終端機執行這行，改完重開 Claude Code：
 
 ```bash
 echo '{"refreshSeconds":"10"}' | claude plugin configure stock-ticker@claude-code-stock-ticker --values-stdin
 ```
-
-終端機版也可以在 Claude Code 裡輸入 `/plugin configure stock-ticker` 修改。
 
 ## 說明
 

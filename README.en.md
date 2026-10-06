@@ -16,13 +16,7 @@ Live Taiwan stock quotes right above your Claude Code prompt, so you can check y
 
 Requires Claude Code 2.1.287 or later.
 
-**Paste this into a terminal** (works for both the CLI and the desktop app; new sessions pick it up):
-
-```bash
-claude plugin marketplace add twjackysu/claude-code-stock-ticker && claude plugin install stock-ticker@claude-code-stock-ticker
-```
-
-**In the CLI** you can also type:
+**CLI**: type this inside Claude Code:
 
 ```
 /plugin marketplace add twjackysu/claude-code-stock-ticker
@@ -30,7 +24,7 @@ claude plugin marketplace add twjackysu/claude-code-stock-ticker && claude plugi
 /reload-plugins
 ```
 
-**In the desktop app** you can also add the marketplace `https://github.com/twjackysu/claude-code-stock-ticker.git` from the plugin settings, then install **stock-ticker**.
+**Desktop app**: add the marketplace `https://github.com/twjackysu/claude-code-stock-ticker.git` from the plugin settings, then install **stock-ticker**.
 
 ## Usage
 
@@ -53,13 +47,13 @@ Available settings:
 | `colors` | `red-up` | `red-up` for red gains, `green-up` for green gains |
 | `alertPercent` | `3` | Toast once a day per symbol past this move; `0` turns alerts off |
 
-Change them from a terminal (works for both the CLI and the desktop app; restart Claude Code afterwards):
+**CLI**: type `/plugin configure stock-ticker` inside Claude Code.
+
+**Desktop app**: run this in a terminal, then restart Claude Code:
 
 ```bash
 echo '{"refreshSeconds":"10"}' | claude plugin configure stock-ticker@claude-code-stock-ticker --values-stdin
 ```
-
-In the CLI you can also type `/plugin configure stock-ticker` inside Claude Code.
 
 ## Notes
 
