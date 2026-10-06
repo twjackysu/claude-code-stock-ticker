@@ -10,7 +10,7 @@ Live Taiwan and US stock quotes right above your Claude Code prompt, so you can 
 
 - Taiwan stocks, ETFs and indices; US stocks plus the Dow, S&P 500, Nasdaq and SOX
 - Refreshes every 5 seconds during market hours, with a toast on big moves
-- Works in the terminal and the desktop app, no setup needed
+- Works in the CLI and the desktop app, no setup needed
 
 ## Install
 
