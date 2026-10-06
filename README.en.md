@@ -14,19 +14,23 @@ Live Taiwan stock quotes right above your Claude Code prompt, so you can check y
 
 ## Install
 
-Paste this into a terminal (requires Claude Code 2.1.287 or later):
+Requires Claude Code 2.1.287 or later.
+
+**Paste this into a terminal** (works for both the CLI and the desktop app; new sessions pick it up):
 
 ```bash
 claude plugin marketplace add twjackysu/claude-code-stock-ticker && claude plugin install stock-ticker@claude-code-stock-ticker
 ```
 
-Or inside Claude Code:
+**In the CLI** you can also type:
 
 ```
 /plugin marketplace add twjackysu/claude-code-stock-ticker
 /plugin install stock-ticker@claude-code-stock-ticker
 /reload-plugins
 ```
+
+**In the desktop app** you can also add the marketplace `https://github.com/twjackysu/claude-code-stock-ticker.git` from the plugin settings, then install **stock-ticker**.
 
 ## Usage
 
@@ -41,7 +45,7 @@ The default watchlist is TAIEX, 2330 and 0050, up to 10 symbols.
 
 ## Settings
 
-Type `/config` in Claude Code and find **stock-ticker**:
+Available settings:
 
 | Setting | Default | |
 | --- | --- | --- |
@@ -49,11 +53,13 @@ Type `/config` in Claude Code and find **stock-ticker**:
 | `colors` | `red-up` | `red-up` for red gains, `green-up` for green gains |
 | `alertPercent` | `3` | Toast once a day per symbol past this move; `0` turns alerts off |
 
-You can also set them at install time, for example a 10-second refresh:
+Change them from a terminal (works for both the CLI and the desktop app; restart Claude Code afterwards):
 
 ```bash
-claude plugin install stock-ticker@claude-code-stock-ticker --config refreshSeconds=10
+echo '{"refreshSeconds":"10"}' | claude plugin configure stock-ticker@claude-code-stock-ticker --values-stdin
 ```
+
+In the CLI you can also type `/plugin configure stock-ticker` inside Claude Code.
 
 ## Notes
 
