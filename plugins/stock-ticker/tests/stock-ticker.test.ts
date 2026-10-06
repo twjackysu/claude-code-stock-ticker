@@ -125,6 +125,30 @@ describe('band', () => {
     expect(missing).toMatchObject({ text: '自選股：2317 t00\n不在自選股：4920' })
   })
 
+  test('/stock add stops at 10 symbols and says which were left out', async ($, on) => {
+    const clock = setup(on, ['1101', '1102', '1103', '1104', '1105', '1106', '1107', '1108', '1109'])
+    await $.session.start(START)
+    await clock.settle()
+
+    const added = await $.command.run({ command: 'stock', args: 'add 2330 2317 2454' } as never)
+    expect(added).toMatchObject({ text: expect.stringContaining('最多 10 檔，未加入：2317 2454') })
+    expect(added).toMatchObject({ text: expect.stringContaining('1109 2330') })
+  })
+
+  test('a narrow band shows how many quotes did not fit', async ($, on) => {
+    const clock = setup(on, ['2330', 't00', '2317'])
+    await $.session.start(START)
+    await clock.settle()
+
+    // Room for one quote plus the "+N" marker.
+    const narrow = { ...BAND, props: { ...BAND.props, bodyColumns: 28 } }
+    const ui = await $.ui.mount({ plugin: 'stock-ticker', surface: 'terminal', ...narrow })
+    expect(await ui.find({ type: 'Text', text: /台積電/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /加權/ })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: '+2' })).toBeDefined()
+    await ui.unmount()
+  })
+
   test('/stock off hides the band', async ($, on) => {
     const clock = setup(on, ['2330'])
     await $.session.start(START)

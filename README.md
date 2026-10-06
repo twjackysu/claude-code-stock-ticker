@@ -9,7 +9,7 @@
 ![在 Claude Code 桌面版的樣子](docs/screenshot.png)
 
 - 上市、上櫃、ETF、加權指數、櫃買指數都支援
-- 盤中自動更新，大漲大跌跳通知
+- 盤中每 5 秒更新，大漲大跌跳通知
 - 終端機和桌面版都能用，裝好不用設定
 
 ## 安裝
@@ -37,7 +37,7 @@ claude plugin marketplace add twjackysu/claude-code-stock-ticker && claude plugi
 /stock off                  隱藏（/stock on 顯示）
 ```
 
-預設自選股是加權、2330、0050。更新頻率、紅漲綠跌或綠漲紅跌、通知門檻可以在 `/config` 的 **stock-ticker** 調整。
+預設自選股是加權、2330、0050，最多 10 檔。更新頻率、紅漲綠跌或綠漲紅跌、通知門檻可以在 `/config` 的 **stock-ticker** 調整。
 
 ## 說明
 

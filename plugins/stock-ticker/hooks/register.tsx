@@ -10,7 +10,7 @@ const error = atom({ plugin: 'stock-ticker', key: 'error' } as const, null as st
 
 const WATCHLIST_KEY = 'watchlist'
 const HIDDEN_KEY = 'hidden'
-const MAX_SYMBOLS = 20
+const MAX_SYMBOLS = 10
 const TAIPEI_OFFSET_MS = 8 * 60 * 60 * 1000
 
 async function loadWatchlist($: EngineInterface): Promise<string[]> {
@@ -65,8 +65,22 @@ function notifyBigMoves($: EngineInterface, alerts: Alerts, list: Quote[], now: 
   }
 }
 
+/** The leading quotes that fit in `columns` cells, each followed by `gap` cells. */
+function fitRow(list: Quote[], columns: number, gap: number): Quote[] {
+  const shown: Quote[] = []
+  let room = columns
+  for (const quote of list) {
+    const width = cellWidth(`${quote.label} ${formatPrice(quote.price)} ${formatChange(quote.changePercent)}`) + gap
+    if (width > room) break
+    room -= width
+    shown.push(quote)
+  }
+
+  return shown
+}
+
 export const register: Register = (on, options) => {
-  const refreshMs = Math.max(10, Number(options.refreshSeconds ?? 30)) * 1000
+  const refreshMs = Math.max(5, Number(options.refreshSeconds ?? 5)) * 1000
   const isRedUp = options.colors !== 'green-up'
   const alerts: Alerts = { percent: Number(options.alertPercent ?? 3), seen: new Set() }
 
@@ -93,16 +107,17 @@ export const register: Register = (on, options) => {
       const codes = rest.map(normalizeSymbol)
       const invalid = rest.filter((_, i) => codes[i] === undefined)
       const valid = codes.filter((c): c is string => c !== undefined)
-      const nextList =
-        verb === 'add'
-          ? [...watchlist, ...valid.filter(c => !watchlist.includes(c))].slice(0, MAX_SYMBOLS)
-          : watchlist.filter(c => !valid.includes(c))
+      const fresh = [...new Set(valid)].filter(c => !watchlist.includes(c))
+      const room = Math.max(0, MAX_SYMBOLS - watchlist.length)
+      const overLimit = verb === 'add' ? fresh.slice(room) : []
+      const nextList = verb === 'add' ? [...watchlist, ...fresh.slice(0, room)] : watchlist.filter(c => !valid.includes(c))
       await $.store.set(WATCHLIST_KEY, nextList)
       await refresh($, alerts, { force: true })
       const absent = verb === 'add' ? [] : valid.filter(c => !watchlist.includes(c))
       const notes = [
         invalid.length > 0 ? `無法辨識：${invalid.join(' ')}` : '',
         absent.length > 0 ? `不在自選股：${absent.join(' ')}` : '',
+        overLimit.length > 0 ? `最多 ${MAX_SYMBOLS} 檔，未加入：${overLimit.join(' ')}` : '',
       ].filter(Boolean)
 
       return { text: [`自選股：${nextList.join(' ') || '(空)'}`, ...notes].join('\n') }
@@ -136,15 +151,12 @@ export const register: Register = (on, options) => {
       return failure === null ? next(e) : <Text dimColor>台股報價暫時無法取得（{failure}）</Text>
     }
 
-    // Keep whole quotes that fit on one row; never cut one in half.
+    // Keep whole quotes that fit on one row; never cut one in half. When some
+    // do not fit, leave room for a "+N" saying how many are left out.
     const gap = 3
-    let room = e.props.bodyColumns
-    const shown = list.filter(quote => {
-      const width = cellWidth(`${quote.label} ${formatPrice(quote.price)} ${formatChange(quote.changePercent)}`) + gap
-      if (width > room) return false
-      room -= width
-      return true
-    })
+    let shown = fitRow(list, e.props.bodyColumns, gap)
+    if (shown.length < list.length) shown = fitRow(list, e.props.bodyColumns - 4, gap)
+    const hidden = list.length - shown.length
 
     const colorOf = (percent: number) => {
       if (percent === 0) return undefined
@@ -162,6 +174,7 @@ export const register: Register = (on, options) => {
             </Text>
           </Box>
         ))}
+        {hidden > 0 ? <Text dimColor>+{hidden}</Text> : null}
       </Box>
     )
   })
