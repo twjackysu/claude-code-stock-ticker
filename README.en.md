@@ -55,6 +55,16 @@ Available settings:
 echo '{"refreshSeconds":"10"}' | claude plugin configure stock-ticker@claude-code-stock-ticker --values-stdin
 ```
 
+## Pair with TWSEMCPServer
+
+For deeper Taiwan market data in Claude (daily candles, institutional trading, monthly revenue, company announcements and more), install [TWSEMCPServer](https://github.com/twjackysu/TWSEMCPServer) separately. The two are independent, so use either or both:
+
+```bash
+claude mcp add --transport http --scope user tw-stock https://TW-Stock-MCP-Server.fastmcp.app/mcp
+```
+
+The hosted server has a usage limit. For heavy use, self-host it by following the [TWSEMCPServer](https://github.com/twjackysu/TWSEMCPServer) README.
+
 ## Notes
 
 - Data source: TWSE MIS public real-time quotes

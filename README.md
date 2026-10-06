@@ -55,6 +55,16 @@
 echo '{"refreshSeconds":"10"}' | claude plugin configure stock-ticker@claude-code-stock-ticker --values-stdin
 ```
 
+## 搭配 TWSEMCPServer
+
+想讓 Claude 幫你查更深入的台股資料（個股日 K、三大法人、月營收、重大訊息⋯），可以另外安裝 [TWSEMCPServer](https://github.com/twjackysu/TWSEMCPServer)。兩個各自獨立，自由搭配：
+
+```bash
+claude mcp add --transport http --scope user tw-stock https://TW-Stock-MCP-Server.fastmcp.app/mcp
+```
+
+線上服務有使用量上限，用量大的話可以參考 [TWSEMCPServer](https://github.com/twjackysu/TWSEMCPServer) 自行架設。
+
 ## 說明
 
 - 資料來源：證交所 MIS 公開即時報價
