@@ -33,6 +33,7 @@ Requires Claude Code 2.1.287 or later.
 ```
 /stock add 2330 NVDA SOX    add symbols (digits: Taiwan, letters: US)
 /stock rm 2330              remove
+/stock rm all               clear the watchlist
 /stock list                 show quotes
 /stock off                  hide (/stock on to show)
 ```

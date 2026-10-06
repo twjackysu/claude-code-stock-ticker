@@ -290,6 +290,25 @@ describe('band', () => {
     expect(listed).toMatchObject({ text: 'NVDA 250 ▲25.00%' })
   })
 
+  test('/stock rm all empties the watchlist and the band', async ($, on) => {
+    const { clock } = setup(on, ['t00', '2330', 'NVDA'])
+    await $.session.start(START)
+    await clock.settle()
+
+    const cleared = await $.command.run({ command: 'stock', args: 'rm ALL' } as never)
+    expect(cleared).toMatchObject({ text: expect.stringContaining('自選股已清空') })
+    const listed = await $.command.run({ command: 'stock', args: 'list' } as never)
+    expect(listed).toMatchObject({ text: '自選股：(空)' })
+
+    const ui = await $.ui.mount({ plugin: 'stock-ticker', surface: 'terminal', ...BAND })
+    expect(await ui.find({ type: 'Text', text: /台積電|NVDA/ })).toBeUndefined()
+    await ui.unmount()
+
+    // ALL as a symbol still means Allstate.
+    const added = await $.command.run({ command: 'stock', args: 'add ALL' } as never)
+    expect(added).toMatchObject({ text: '自選股：ALL' })
+  })
+
   test('/stock off hides the band', async ($, on) => {
     const { clock } = setup(on, ['2330'])
     await $.session.start(START)

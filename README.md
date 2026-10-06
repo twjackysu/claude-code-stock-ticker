@@ -33,6 +33,7 @@
 ```
 /stock add 2330 NVDA 費半   加入自選股（數字是台股，英文是美股）
 /stock rm 2330              移除
+/stock rm all               清空自選股
 /stock list                 列出報價
 /stock off                  隱藏（/stock on 顯示）
 ```

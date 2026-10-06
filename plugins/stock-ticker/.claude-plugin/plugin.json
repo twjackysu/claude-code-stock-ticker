@@ -1,6 +1,6 @@
 {
   "name": "stock-ticker",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Live stock ticker band above the Claude Code prompt: watch Taiwan and US quotes while Claude works.",
   "author": { "name": "twjackysu" },
   "license": "MIT",

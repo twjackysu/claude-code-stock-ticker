@@ -153,7 +153,7 @@ export const register: Register = (on, options) => {
     await $.command.register({
       name: 'stock',
       description: 'Stock ticker: add/remove Taiwan or US symbols, show or hide the band',
-      argumentHint: 'add 2330 NVDA | rm 2330 | list | on | off',
+      argumentHint: 'add 2330 NVDA | rm 2330 | rm all | list | on | off',
     })
     const wasHidden = (await $.store.get(HIDDEN_KEY)) === true
     await update($, isHidden, () => wasHidden)
@@ -168,7 +168,16 @@ export const register: Register = (on, options) => {
     const [verb = 'list', ...rest] = e.args.trim().split(/\s+/).filter(Boolean)
     const watchlist = await loadWatchlist($)
 
-    if (verb === 'add' || verb === 'rm' || verb === 'remove') {
+    // Checked before symbols: ALL is also Allstate's ticker, which `add ALL` still adds.
+    const isRemove = verb === 'rm' || verb === 'remove'
+    if (isRemove && rest.length === 1 && rest[0]?.toLowerCase() === 'all') {
+      await $.store.set(WATCHLIST_KEY, [])
+      await refreshAll($, poll, { force: true })
+
+      return { text: '自選股已清空，/stock add 2330 NVDA 加入新的。' }
+    }
+
+    if (verb === 'add' || isRemove) {
       const codes = rest.map(normalizeSymbol)
       const invalid = rest.filter((_, i) => codes[i] === undefined)
       const valid = codes.filter((c): c is string => c !== undefined)
@@ -204,7 +213,7 @@ export const register: Register = (on, options) => {
       return { text: lines.length > 0 ? lines.join('\n') : `自選股：${watchlist.join(' ') || '(空)'}` }
     }
 
-    return { text: '用法：/stock add 2330 NVDA | /stock rm 2330 | /stock list | /stock on | /stock off' }
+    return { text: '用法：/stock add 2330 NVDA | /stock rm 2330 | /stock rm all | /stock list | /stock on | /stock off' }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
