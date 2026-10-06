@@ -43,7 +43,7 @@ claude plugin marketplace add twjackysu/claude-code-stock-ticker && claude plugi
 
 - 資料來源：證交所 MIS 公開即時報價
 - 非交易時段（台北時間平日 08:30–14:00 以外）停止輪詢，保留最後報價
-- 只有使用中的 session 會輪詢，閒置 5 分鐘的背景 session 自動暫停
+- 只有畫面上正在看的 session 會輪詢，切到別的 session 就暫停
 - 報價僅供參考，不構成投資建議
 
 ## License

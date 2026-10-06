@@ -34,8 +34,11 @@ function isMarketHours(now: number): boolean {
  * This session's polling: when it was last used, whether a turn is running,
  * when quotes last arrived, and which big-move toasts already fired today.
  *
- * Every open session runs its own copy of the mod, so only sessions in use
- * poll: a turn running, or a prompt or /stock within IDLE_MS.
+ * Every open session runs its own copy of the mod, so only sessions someone
+ * looks at poll. The desktop app and the phone attach a session while it is
+ * on screen and detach it when the person switches away; a terminal raises
+ * neither, so a terminal session polls while in use: a turn running, or a
+ * prompt or /stock within IDLE_MS.
  */
 type Poll = {
   refreshMs: number
@@ -49,12 +52,19 @@ type Poll = {
 
 const isInUse = (poll: Poll, now: number) => poll.isTurnRunning || now - poll.activeAt < IDLE_MS
 
+async function isWatched($: EngineInterface, poll: Poll, now: number): Promise<boolean> {
+  const surfaces = await $.session.surfaces()
+  if (surfaces.some(surface => surface !== 'terminal')) return true
+
+  return surfaces.includes('terminal') && isInUse(poll, now)
+}
+
 async function refresh($: EngineInterface, poll: Poll, { force = false } = {}) {
   const now = await $.clock.now()
   if (!force) {
     // Outside trading hours the last quotes stand; one fetch fills an empty band.
     if (!isMarketHours(now) && (await read($, quotes)).length > 0) return
-    if (!isInUse(poll, now)) return
+    if (!(await isWatched($, poll, now))) return
   }
   if (poll.isFetching) return
 
@@ -202,13 +212,11 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || (await read($, isHidden))) return next(e)
 
-    // Drawn while the quotes are stale: someone came back to an idle session.
-    // A redraw that fresh quotes caused does not count, or polling would keep itself alive.
+    // Drawn while the quotes are stale: someone came back to an idle terminal
+    // session, so the next tick polls again. A redraw that fresh quotes caused
+    // does not count, or polling would keep itself alive.
     const now = await $.clock.now()
-    if (isMarketHours(now) && now - poll.fetchedAt > poll.refreshMs * 2 && !poll.isFetching) {
-      poll.activeAt = now
-      $.clock.after(0, () => void refresh($, poll))
-    }
+    if (isMarketHours(now) && now - poll.fetchedAt > poll.refreshMs * 2) poll.activeAt = now
 
     const list = await read($, quotes)
     const failure = await read($, error)

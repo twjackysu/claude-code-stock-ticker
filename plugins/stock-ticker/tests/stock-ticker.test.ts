@@ -1,4 +1,4 @@
-import type { On, RenderElement } from 'claude-code'
+import type { On, RenderElement, RenderSurface } from 'claude-code'
 import { describe, expect, mock, test } from 'claude-code/testing'
 
 import { cellWidth, formatChange, formatPrice, misUrl, normalizeSymbol, parseMis } from '../hooks/quotes'
@@ -18,7 +18,7 @@ const MIS = JSON.stringify({
 const MARKET_OPEN = Date.UTC(2026, 9, 6, 2, 0)
 
 /** The engine beneath the plugin: a stored watchlist, an open market, MIS answering, a session that starts. */
-function setup(on: On, watchlist: string[]) {
+function setup(on: On, watchlist: string[], surfaces: RenderSurface[] = ['terminal']) {
   mock.store(on, { watchlist })
   const clock = mock.clock(on, { now: MARKET_OPEN })
   const calls = { fetch: 0 }
@@ -27,6 +27,15 @@ function setup(on: On, watchlist: string[]) {
     return { value: { status: 200, ok: true, headers: {}, text: MIS } }
   })
   on('command.register', async ($, e) => ({ value: { command: e.name } }))
+  on('session.surfaces', async () => ({ value: [...surfaces] }))
+  on('session.attach', async ($, e) => {
+    surfaces.push(e.surface)
+    return { clientId: e.clientId }
+  })
+  on('session.detach', async ($, e) => {
+    surfaces.splice(surfaces.indexOf(e.surface), 1)
+    return { clientId: e.clientId }
+  })
   on('session.start', async ($, e) => ({ cwd: e.cwd }))
   // What the engine draws when the band yields.
   on('ui.render', async ($, e) => {
@@ -173,7 +182,30 @@ describe('band', () => {
     expect(calls.fetch).toBe(idle + 2)
   })
 
-  test('drawing stale quotes in an idle session fetches again', async ($, on) => {
+  test('a desktop session polls while on screen and stops once switched away', async ($, on) => {
+    const { clock, calls } = setup(on, ['2330'], [])
+    await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+    await $.session.attach({ surface: 'desktop', clientId: 'desktop:default' })
+    await clock.settle()
+
+    // On screen: polls past the idle limit, no prompt needed.
+    await clock.advance(10 * 60_000)
+    const watched = calls.fetch
+    expect(watched).toBeGreaterThan(100)
+
+    await $.session.detach({ surface: 'desktop', clientId: 'desktop:default', reason: 'detach' })
+    await clock.advance(60_000)
+    expect(calls.fetch).toBe(watched)
+
+    // Back on screen: polling picks up at the next tick.
+    await $.session.attach({ surface: 'desktop', clientId: 'desktop:default' })
+    await clock.settle()
+    expect(calls.fetch).toBe(watched)
+    await clock.advance(10_000)
+    expect(calls.fetch).toBe(watched + 2)
+  })
+
+  test('drawing stale quotes in an idle terminal session resumes polling', async ($, on) => {
     const { clock, calls } = setup(on, ['2330'])
     await $.session.start(START)
     await clock.advance(6 * 60_000)
@@ -181,6 +213,8 @@ describe('band', () => {
 
     const ui = await $.ui.mount({ plugin: 'stock-ticker', surface: 'terminal', ...BAND })
     await clock.settle()
+    expect(calls.fetch).toBe(idle)
+    await clock.advance(5_000)
     expect(calls.fetch).toBe(idle + 1)
     await ui.unmount()
   })
