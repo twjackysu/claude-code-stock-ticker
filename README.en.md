@@ -6,7 +6,7 @@
 
 Live Taiwan and US stock quotes right above your Claude Code prompt, so you can check your watchlist while Claude works.
 
-![Stock ticker band above the prompt in the Claude Code desktop app](docs/screenshot.png)
+![How it works](docs/demo.gif)
 
 - Taiwan stocks, ETFs and indices; US stocks plus the Dow, S&P 500, Nasdaq and SOX
 - Refreshes every 5 seconds during market hours, with a toast on big moves

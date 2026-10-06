@@ -6,7 +6,7 @@
 
 在 Claude Code 輸入框上方即時顯示台股、美股報價，等 Claude 跑任務的空檔，順便看一下自選股。
 
-![在 Claude Code 桌面版的樣子](docs/screenshot.png)
+![使用方法](docs/demo.gif)
 
 - 台股上市、上櫃、ETF、加權、櫃買，美股個股與道瓊、標普、那斯達克、費半
 - 盤中每 5 秒更新，大漲大跌跳通知
