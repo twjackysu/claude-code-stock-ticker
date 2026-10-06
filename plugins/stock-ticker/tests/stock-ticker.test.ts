@@ -120,6 +120,9 @@ describe('band', () => {
 
     const removed = await $.command.run({ command: 'stock', args: 'rm 2330' } as never)
     expect(removed).toMatchObject({ text: '自選股：2317 t00' })
+
+    const missing = await $.command.run({ command: 'stock', args: 'rm 4920' } as never)
+    expect(missing).toMatchObject({ text: '自選股：2317 t00\n不在自選股：4920' })
   })
 
   test('/stock off hides the band', async ($, on) => {

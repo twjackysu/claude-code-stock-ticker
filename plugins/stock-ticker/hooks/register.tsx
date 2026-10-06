@@ -99,9 +99,13 @@ export const register: Register = (on, options) => {
           : watchlist.filter(c => !valid.includes(c))
       await $.store.set(WATCHLIST_KEY, nextList)
       await refresh($, alerts, { force: true })
-      const skipped = invalid.length > 0 ? `\n無法辨識：${invalid.join(' ')}` : ''
+      const absent = verb === 'add' ? [] : valid.filter(c => !watchlist.includes(c))
+      const notes = [
+        invalid.length > 0 ? `無法辨識：${invalid.join(' ')}` : '',
+        absent.length > 0 ? `不在自選股：${absent.join(' ')}` : '',
+      ].filter(Boolean)
 
-      return { text: `自選股：${nextList.join(' ') || '(空)'}${skipped}` }
+      return { text: [`自選股：${nextList.join(' ') || '(空)'}`, ...notes].join('\n') }
     }
 
     if (verb === 'on' || verb === 'off') {
