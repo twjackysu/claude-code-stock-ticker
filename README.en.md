@@ -24,7 +24,9 @@ Requires Claude Code 2.1.287 or later.
 /reload-plugins
 ```
 
-**Desktop app**: add the marketplace `https://github.com/twjackysu/claude-code-stock-ticker.git` from the plugin settings, then install **stock-ticker**.
+**Desktop app**: Settings → **Plugins** → **Add** → **Add from a repository**, enter `twjackysu/claude-code-stock-ticker` and press **Sync**, then install **Stock ticker** from **Discover**.
+
+![Installing in the desktop app](docs/desktop-install.gif)
 
 ## Usage
 

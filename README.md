@@ -10,13 +10,13 @@
 
 - 上市、上櫃、ETF、加權指數、櫃買指數都支援
 - 盤中每 5 秒更新，大漲大跌跳通知
-- 終端機和桌面版都能用，裝好不用設定
+- CLI 和桌面版都能用，裝好不用設定
 
 ## 安裝
 
 需要 Claude Code 2.1.287 以上。
 
-**終端機版**在 Claude Code 裡輸入：
+**CLI** 在 Claude Code 裡輸入：
 
 ```
 /plugin marketplace add twjackysu/claude-code-stock-ticker
@@ -24,7 +24,9 @@
 /reload-plugins
 ```
 
-**桌面版**在 plugin 設定畫面加入 marketplace `https://github.com/twjackysu/claude-code-stock-ticker.git`，再安裝 **stock-ticker**。
+**桌面版**：設定 → **Plugins** → **Add** → **Add from a repository**，填入 `twjackysu/claude-code-stock-ticker` 按 **Sync**，再到 **Discover** 安裝 **Stock ticker**。
+
+![桌面版安裝步驟](docs/desktop-install.gif)
 
 ## 用法
 
@@ -47,9 +49,9 @@
 | `colors` 漲跌顏色 | `red-up` | `red-up` 紅漲綠跌，`green-up` 綠漲紅跌 |
 | `alertPercent` 通知門檻（%） | `3` | 每檔每天最多通知一次，`0` 關閉 |
 
-**終端機版**在 Claude Code 裡輸入 `/plugin configure stock-ticker` 修改。
+**CLI** 在 Claude Code 裡輸入 `/plugin configure stock-ticker` 修改。
 
-**桌面版**在終端機執行這行，改完重開 Claude Code：
+**桌面版**在終端機（PowerShell、Terminal）執行這行，改完重開 Claude Code：
 
 ```bash
 echo '{"refreshSeconds":"10"}' | claude plugin configure stock-ticker@claude-code-stock-ticker --values-stdin
