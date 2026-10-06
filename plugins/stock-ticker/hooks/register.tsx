@@ -2,7 +2,21 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Quote } from '../types'
-import { DEFAULT_WATCHLIST, cellWidth, formatChange, formatPrice, misUrl, normalizeSymbol, parseMis } from './quotes'
+import type { Market } from './quotes'
+import {
+  DEFAULT_WATCHLIST,
+  cellWidth,
+  formatChange,
+  formatPrice,
+  isMarketOpen,
+  marketOf,
+  misUrl,
+  normalizeSymbol,
+  parseMis,
+  parseYahoo,
+  taipeiDay,
+  yahooUrl,
+} from './quotes'
 
 const quotes = atom({ plugin: 'stock-ticker', key: 'quotes' } as const, [] as Quote[])
 const isHidden = atom({ plugin: 'stock-ticker', key: 'isHidden' } as const, false)
@@ -11,7 +25,6 @@ const error = atom({ plugin: 'stock-ticker', key: 'error' } as const, null as st
 const WATCHLIST_KEY = 'watchlist'
 const HIDDEN_KEY = 'hidden'
 const MAX_SYMBOLS = 10
-const TAIPEI_OFFSET_MS = 8 * 60 * 60 * 1000
 
 async function loadWatchlist($: EngineInterface): Promise<string[]> {
   const stored = await $.store.get(WATCHLIST_KEY)
@@ -19,21 +32,26 @@ async function loadWatchlist($: EngineInterface): Promise<string[]> {
   return Array.isArray(stored) ? stored.filter((s): s is string => typeof s === 'string') : DEFAULT_WATCHLIST
 }
 
-/** Weekdays 08:30–14:00 Taipei time: pre-open matching through the after-hours fixed-price session. */
-function isMarketHours(now: number): boolean {
-  const taipei = new Date(now + TAIPEI_OFFSET_MS)
-  const day = taipei.getUTCDay()
-  const minutes = taipei.getUTCHours() * 60 + taipei.getUTCMinutes()
+const MARKETS: readonly Market[] = ['tw', 'us']
+const MARKET_NAMES: Record<Market, string> = { tw: '台股', us: '美股' }
 
-  return day >= 1 && day <= 5 && minutes >= 8 * 60 + 30 && minutes <= 14 * 60
+/** This session's polling per market, and which big-move toasts already fired today. */
+type Poll = {
+  refreshMs: Record<Market, number>
+  alertPercent: number
+  isFetching: Record<Market, boolean>
+  alerted: Set<string>
 }
 
-/** This session's polling, and which big-move toasts already fired today. */
-type Poll = {
-  refreshMs: number
-  alertPercent: number
-  isFetching: boolean
-  alerted: Set<string>
+/** Taiwan quotes come from TWSE MIS; US quotes from Yahoo Finance, which refuses requests without a browser User-Agent. */
+async function fetchQuotes($: EngineInterface, market: Market, codes: readonly string[]): Promise<Quote[]> {
+  const response =
+    market === 'tw'
+      ? await $.http.fetch(misUrl(codes))
+      : await $.http.fetch(yahooUrl(codes), { headers: { 'User-Agent': 'Mozilla/5.0' } })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+
+  return market === 'tw' ? parseMis(response.text, codes) : parseYahoo(response.text, codes)
 }
 
 /**
@@ -46,39 +64,57 @@ async function isOnScreen($: EngineInterface): Promise<boolean> {
   return (await $.session.surfaces()).length > 0
 }
 
-async function refresh($: EngineInterface, poll: Poll, { force = false } = {}) {
+/** Refreshes one market's quotes, keeping the other market's and the watchlist's order. */
+async function refresh($: EngineInterface, poll: Poll, market: Market, { force = false } = {}) {
   const now = await $.clock.now()
+  const watchlist = await loadWatchlist($)
+  const codes = watchlist.filter(code => marketOf(code) === market)
   if (!force) {
-    // Outside trading hours the last quotes stand; one fetch fills an empty band.
-    if (!isMarketHours(now) && (await read($, quotes)).length > 0) return
+    // Outside trading hours the last quotes stand; one fetch fills them in.
+    const hasQuotes = (await read($, quotes)).some(quote => marketOf(quote.symbol) === market)
+    if (!isMarketOpen(market, now) && hasQuotes) return
     if (!(await isOnScreen($))) return
   }
-  if (poll.isFetching) return
+  if (poll.isFetching[market]) return
 
-  const codes = await loadWatchlist($)
+  // Merged into the latest list, not one read earlier: the other market may have landed meanwhile.
+  // Yahoo's caches sometimes answer with an older snapshot; a quote never goes back in time.
+  const merge = (fresh: Quote[]) => (latest: Quote[]) => {
+    const bySymbol = new Map(latest.filter(q => marketOf(q.symbol) !== market).map(q => [q.symbol, q]))
+    const previous = new Map(latest.map(q => [q.symbol, q]))
+    for (const quote of fresh) {
+      const known = previous.get(quote.symbol)
+      const isStale = known?.asOf !== undefined && quote.asOf !== undefined && quote.asOf < known.asOf
+      bySymbol.set(quote.symbol, isStale && known ? known : quote)
+    }
+    return watchlist.flatMap(code => bySymbol.get(code) ?? [])
+  }
   if (codes.length === 0) {
-    await update($, quotes, () => [])
+    await update($, quotes, merge([]))
     return
   }
 
-  poll.isFetching = true
+  poll.isFetching[market] = true
   try {
-    const response = await $.http.fetch(misUrl(codes))
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    const next = parseMis(response.text, codes)
-    await update($, quotes, () => next)
+    const fresh = await fetchQuotes($, market, codes)
+    await update($, quotes, merge(fresh))
     await update($, error, () => null)
-    notifyBigMoves($, poll, next, now)
+    notifyBigMoves($, poll, fresh, now)
   } catch (reason) {
-    await update($, error, () => (reason instanceof Error ? reason.message : String(reason)))
+    const message = reason instanceof Error ? reason.message : String(reason)
+    await update($, error, () => `${MARKET_NAMES[market]}：${message}`)
   } finally {
-    poll.isFetching = false
+    poll.isFetching[market] = false
   }
+}
+
+async function refreshAll($: EngineInterface, poll: Poll, { force = false } = {}) {
+  await Promise.all(MARKETS.map(market => refresh($, poll, market, { force })))
 }
 
 function notifyBigMoves($: EngineInterface, poll: Poll, list: Quote[], now: number) {
   if (poll.alertPercent <= 0) return
-  const day = new Date(now + TAIPEI_OFFSET_MS).toISOString().slice(0, 10)
+  const day = taipeiDay(now)
   for (const quote of list) {
     const id = `${day}:${quote.symbol}`
     if (Math.abs(quote.changePercent) < poll.alertPercent || poll.alerted.has(id)) continue
@@ -104,23 +140,26 @@ function fitRow(list: Quote[], columns: number, gap: number): Quote[] {
 export const register: Register = (on, options) => {
   const isRedUp = options.colors !== 'green-up'
   const poll: Poll = {
-    refreshMs: Math.max(5, Number(options.refreshSeconds ?? 5)) * 1000,
+    refreshMs: {
+      tw: Math.max(5, Number(options.refreshSeconds ?? 5)) * 1000,
+      us: Math.max(5, Number(options.usRefreshSeconds ?? 5)) * 1000,
+    },
     alertPercent: Number(options.alertPercent ?? 3),
-    isFetching: false,
+    isFetching: { tw: false, us: false },
     alerted: new Set(),
   }
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'stock',
-      description: 'Taiwan stock ticker: add/remove symbols, show or hide the band',
-      argumentHint: 'add 2330 0050 | rm 2330 | list | on | off',
+      description: 'Stock ticker: add/remove Taiwan or US symbols, show or hide the band',
+      argumentHint: 'add 2330 NVDA | rm 2330 | list | on | off',
     })
     const wasHidden = (await $.store.get(HIDDEN_KEY)) === true
     await update($, isHidden, () => wasHidden)
 
-    void refresh($, poll, { force: true })
-    $.clock.every(poll.refreshMs, () => void refresh($, poll))
+    void refreshAll($, poll, { force: true })
+    for (const market of MARKETS) $.clock.every(poll.refreshMs[market], () => void refresh($, poll, market))
 
     return next(e)
   })
@@ -138,7 +177,7 @@ export const register: Register = (on, options) => {
       const overLimit = verb === 'add' ? fresh.slice(room) : []
       const nextList = verb === 'add' ? [...watchlist, ...fresh.slice(0, room)] : watchlist.filter(c => !valid.includes(c))
       await $.store.set(WATCHLIST_KEY, nextList)
-      await refresh($, poll, { force: true })
+      await refreshAll($, poll, { force: true })
       const absent = verb === 'add' ? [] : valid.filter(c => !watchlist.includes(c))
       const notes = [
         invalid.length > 0 ? `無法辨識：${invalid.join(' ')}` : '',
@@ -158,12 +197,14 @@ export const register: Register = (on, options) => {
 
     if (verb === 'list') {
       const list = await read($, quotes)
-      const lines = list.map(q => `${q.symbol} ${q.label} ${formatPrice(q.price)} ${formatChange(q.changePercent)}`)
+      const lines = list.map(q =>
+        [q.symbol, q.label === q.symbol ? '' : q.label, formatPrice(q.price), formatChange(q.changePercent)].filter(Boolean).join(' '),
+      )
 
       return { text: lines.length > 0 ? lines.join('\n') : `自選股：${watchlist.join(' ') || '(空)'}` }
     }
 
-    return { text: '用法：/stock add 2330 0050 | /stock rm 2330 | /stock list | /stock on | /stock off' }
+    return { text: '用法：/stock add 2330 NVDA | /stock rm 2330 | /stock list | /stock on | /stock off' }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -174,7 +215,7 @@ export const register: Register = (on, options) => {
     const { Box, Text } = $.ui.resolve(e)
 
     if (list.length === 0) {
-      return failure === null ? next(e) : <Text dimColor>台股報價暫時無法取得（{failure}）</Text>
+      return failure === null ? next(e) : <Text dimColor>報價暫時無法取得（{failure}）</Text>
     }
 
     // Keep whole quotes that fit on one row; never cut one in half. When some

@@ -4,11 +4,11 @@
 
 **Claude writes the code. You watch the market.**
 
-Live Taiwan stock quotes right above your Claude Code prompt, so you can check your watchlist while Claude works.
+Live Taiwan and US stock quotes right above your Claude Code prompt, so you can check your watchlist while Claude works.
 
 ![Stock ticker band above the prompt in the Claude Code desktop app](docs/screenshot.png)
 
-- TWSE and TPEx stocks, ETFs, and the TAIEX / TPEx indices
+- Taiwan stocks, ETFs and indices; US stocks plus the Dow, S&P 500, Nasdaq and SOX
 - Refreshes every 5 seconds during market hours, with a toast on big moves
 - Works in the terminal and the desktop app, no setup needed
 
@@ -31,7 +31,7 @@ Requires Claude Code 2.1.287 or later.
 ## Usage
 
 ```
-/stock add 2330 2454 TPEX   add symbols
+/stock add 2330 NVDA SOX    add symbols (digits: Taiwan, letters: US)
 /stock rm 2330              remove
 /stock list                 show quotes
 /stock off                  hide (/stock on to show)
@@ -45,7 +45,8 @@ Available settings:
 
 | Setting | Default | |
 | --- | --- | --- |
-| `refreshSeconds` | `5` | Refresh interval in seconds, minimum 5 |
+| `refreshSeconds` | `5` | Taiwan refresh interval in seconds, minimum 5 |
+| `usRefreshSeconds` | `5` | US refresh interval in seconds, minimum 5 |
 | `colors` | `red-up` | `red-up` for red gains, `green-up` for green gains |
 | `alertPercent` | `3` | Toast once a day per symbol past this move; `0` turns alerts off |
 
@@ -69,8 +70,8 @@ The hosted server has a usage limit. For heavy use, self-host it by following th
 
 ## Notes
 
-- Data source: TWSE MIS public real-time quotes
-- Outside trading hours (weekdays 08:30–14:00 Taipei time) polling stops and the last quotes stay
+- Data sources: TWSE MIS public real-time quotes for Taiwan, Yahoo Finance for the US
+- Outside trading hours polling stops and the last quotes stay: Taiwan trades weekdays 08:30–14:00 Taipei time, the US weekdays 09:30–16:00 New York time
 - Only the session on screen polls; switching to another session pauses it
 - Quotes are for reference only. Not investment advice.
 

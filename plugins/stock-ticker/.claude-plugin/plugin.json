@@ -1,15 +1,21 @@
 {
   "name": "stock-ticker",
   "version": "0.1.0",
-  "description": "Live Taiwan stock ticker band above the Claude Code prompt: watch TWSE/TPEx quotes while Claude works.",
+  "description": "Live stock ticker band above the Claude Code prompt: watch Taiwan and US quotes while Claude works.",
   "author": { "name": "twjackysu" },
   "license": "MIT",
   "types": "./types/index.d.ts",
   "userConfig": {
     "refreshSeconds": {
       "type": "number",
-      "title": "Refresh interval (seconds)",
-      "description": "How often quotes refresh during market hours. Minimum 5.",
+      "title": "Taiwan refresh interval (seconds)",
+      "description": "How often Taiwan quotes refresh during market hours. Minimum 5.",
+      "default": 5
+    },
+    "usRefreshSeconds": {
+      "type": "number",
+      "title": "US refresh interval (seconds)",
+      "description": "How often US quotes refresh during market hours. Minimum 5.",
       "default": 5
     },
     "colors": {

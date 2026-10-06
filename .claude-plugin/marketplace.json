@@ -2,16 +2,16 @@
   "name": "claude-code-stock-ticker",
   "owner": { "name": "twjackysu" },
   "metadata": {
-    "description": "Claude Code mods for watching the Taiwan stock market while Claude works."
+    "description": "Claude Code mods for watching the Taiwan and US stock markets while Claude works."
   },
   "plugins": [
     {
       "name": "stock-ticker",
       "source": "./plugins/stock-ticker",
-      "description": "Live Taiwan stock ticker band above the Claude Code prompt: watch TWSE/TPEx quotes while Claude works.",
+      "description": "Live stock ticker band above the Claude Code prompt: watch Taiwan and US quotes while Claude works.",
       "version": "0.1.0",
       "license": "MIT",
-      "keywords": ["stock", "taiwan", "twse", "tpex", "ticker", "mod"]
+      "keywords": ["stock", "taiwan", "twse", "tpex", "us", "nasdaq", "ticker", "mod"]
     }
   ]
 }

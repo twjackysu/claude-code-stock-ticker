@@ -1,7 +1,18 @@
 import type { On, RenderElement, RenderSurface } from 'claude-code'
 import { describe, expect, mock, test } from 'claude-code/testing'
 
-import { cellWidth, formatChange, formatPrice, misUrl, normalizeSymbol, parseMis } from '../hooks/quotes'
+import {
+  cellWidth,
+  formatChange,
+  formatPrice,
+  isMarketOpen,
+  marketOf,
+  misUrl,
+  normalizeSymbol,
+  parseMis,
+  parseYahoo,
+  yahooUrl,
+} from '../hooks/quotes'
 
 // A trimmed MIS response: a TWSE stock, the empty stub the wrong exchange answers,
 // the TAIEX index, and a stock between trades (z is "-", only the order book has a price).
@@ -14,17 +25,26 @@ const MIS = JSON.stringify({
   ],
 })
 
-// Tuesday 10:00 Taipei: the market is open.
+// A trimmed Yahoo spark response.
+const YAHOO = JSON.stringify({
+  NVDA: { symbol: 'NVDA', timestamp: [1791298850], fulldayPrice: 242.37, chartPreviousClose: 238.9, close: [242.37] },
+  '^SOX': { symbol: '^SOX', fulldayPrice: null, chartPreviousClose: 5000, close: [4900] },
+})
+
+// Tuesday 10:00 Taipei: Taiwan is open, New York is closed.
 const MARKET_OPEN = Date.UTC(2026, 9, 6, 2, 0)
+// Tuesday 10:00 New York (EDT): New York is open, Taiwan is closed.
+const US_OPEN = Date.UTC(2026, 9, 6, 14, 0)
 
 /** The engine beneath the plugin: a stored watchlist, an open market, MIS answering, a session that starts. */
-function setup(on: On, watchlist: string[], surfaces: RenderSurface[] = ['terminal']) {
+function setup(on: On, watchlist: string[], surfaces: RenderSurface[] = ['terminal'], now = MARKET_OPEN) {
   mock.store(on, { watchlist })
-  const clock = mock.clock(on, { now: MARKET_OPEN })
-  const calls = { fetch: 0 }
-  on('http.fetch', async () => {
-    calls.fetch += 1
-    return { value: { status: 200, ok: true, headers: {}, text: MIS } }
+  const clock = mock.clock(on, { now })
+  const calls = { mis: 0, yahoo: 0 }
+  on('http.fetch', async ($, e) => {
+    const isYahoo = e.url.includes('yahoo')
+    calls[isYahoo ? 'yahoo' : 'mis'] += 1
+    return { value: { status: 200, ok: true, headers: {}, text: isYahoo ? YAHOO : MIS } }
   })
   on('command.register', async ($, e) => ({ value: { command: e.name } }))
   on('session.surfaces', async () => ({ value: [...surfaces] }))
@@ -68,7 +88,35 @@ describe('quotes', () => {
     expect(normalizeSymbol('加權')).toBe('t00')
     expect(normalizeSymbol('TAIEX')).toBe('t00')
     expect(normalizeSymbol('櫃買')).toBe('o00')
-    expect(normalizeSymbol('AAPL')).toBeUndefined()
+    expect(normalizeSymbol('aapl')).toBe('AAPL')
+    expect(normalizeSymbol('brk.b')).toBe('BRK-B')
+    expect(normalizeSymbol('費半')).toBe('^SOX')
+    expect(normalizeSymbol('$$')).toBeUndefined()
+    expect(marketOf('2330')).toBe('tw')
+    expect(marketOf('t00')).toBe('tw')
+    expect(marketOf('NVDA')).toBe('us')
+    expect(marketOf('^SOX')).toBe('us')
+  })
+
+  test('parses Yahoo rows, falling back to the last close', () => {
+    const quotes = parseYahoo(YAHOO, ['^SOX', 'NVDA', 'AAPL'])
+    expect(quotes.map(q => q.symbol)).toEqual(['^SOX', 'NVDA'])
+    expect(quotes[0]?.label).toBe('費半')
+    expect(quotes[0]?.changePercent.toFixed(2)).toBe('-2.00')
+    expect(quotes[1]?.changePercent.toFixed(2)).toBe('1.45')
+    expect(decodeURIComponent(yahooUrl(['NVDA', '^SOX']))).toContain('symbols=NVDA,^SOX&')
+  })
+
+  test('knows the trading hours of each market, daylight saving included', () => {
+    expect(isMarketOpen('tw', MARKET_OPEN)).toBe(true)
+    expect(isMarketOpen('us', MARKET_OPEN)).toBe(false)
+    expect(isMarketOpen('us', US_OPEN)).toBe(true)
+    expect(isMarketOpen('tw', US_OPEN)).toBe(false)
+    // December is EST: 14:00 UTC is 09:00 in New York, 15:00 UTC is 10:00.
+    expect(isMarketOpen('us', Date.UTC(2026, 11, 7, 14, 0))).toBe(false)
+    expect(isMarketOpen('us', Date.UTC(2026, 11, 7, 15, 0))).toBe(true)
+    // Saturday.
+    expect(isMarketOpen('us', Date.UTC(2026, 9, 10, 15, 0))).toBe(false)
   })
 
   test('asks both exchanges for stocks and one for indices', () => {
@@ -127,9 +175,9 @@ describe('band', () => {
     await $.session.start(START)
     await clock.settle()
 
-    const added = await $.command.run({ command: 'stock', args: 'add 2317 加權 nope' } as never)
+    const added = await $.command.run({ command: 'stock', args: 'add 2317 加權 $$' } as never)
     expect(added).toMatchObject({ text: expect.stringContaining('2330 2317 t00') })
-    expect(added).toMatchObject({ text: expect.stringContaining('nope') })
+    expect(added).toMatchObject({ text: expect.stringContaining('無法辨識：$$') })
 
     const removed = await $.command.run({ command: 'stock', args: 'rm 2330' } as never)
     expect(removed).toMatchObject({ text: '自選股：2317 t00' })
@@ -168,7 +216,7 @@ describe('band', () => {
     await clock.settle()
 
     await clock.advance(30 * 60_000)
-    expect(calls.fetch).toBe(1 + 360)
+    expect(calls.mis).toBe(1 + 360)
   })
 
   test('a desktop session polls while on screen and stops once switched away', async ($, on) => {
@@ -179,19 +227,66 @@ describe('band', () => {
 
     // On screen: polls past the idle limit, no prompt needed.
     await clock.advance(10 * 60_000)
-    const watched = calls.fetch
+    const watched = calls.mis
     expect(watched).toBeGreaterThan(100)
 
     await $.session.detach({ surface: 'desktop', clientId: 'desktop:default', reason: 'detach' })
     await clock.advance(60_000)
-    expect(calls.fetch).toBe(watched)
+    expect(calls.mis).toBe(watched)
 
     // Back on screen: polling picks up at the next tick.
     await $.session.attach({ surface: 'desktop', clientId: 'desktop:default' })
     await clock.settle()
-    expect(calls.fetch).toBe(watched)
+    expect(calls.mis).toBe(watched)
     await clock.advance(10_000)
-    expect(calls.fetch).toBe(watched + 2)
+    expect(calls.mis).toBe(watched + 2)
+  })
+
+  test('Taiwan and US quotes share the band in watchlist order', async ($, on) => {
+    const { clock } = setup(on, ['NVDA', '2330'])
+    await $.session.start(START)
+    await clock.settle()
+
+    const ui = await $.ui.mount({ plugin: 'stock-ticker', surface: 'terminal', ...BAND })
+    expect(await ui.find({ type: 'Text', text: /NVDA/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /台積電/ })).toBeDefined()
+    expect((await ui.find({ type: 'Text', text: '▲1.45%' }))?.props.color).toBe('red')
+    await ui.unmount()
+  })
+
+  test('US quotes poll every 5 seconds while New York trades, Taiwan rests', async ($, on) => {
+    const { clock, calls } = setup(on, ['2330', 'NVDA'], ['terminal'], US_OPEN)
+    await $.session.start(START)
+    await clock.settle()
+    expect(calls).toEqual({ mis: 1, yahoo: 1 })
+
+    await clock.advance(60_000)
+    expect(calls).toEqual({ mis: 1, yahoo: 13 })
+  })
+
+  test('the US interval has its own setting', { options: { usRefreshSeconds: 30 } }, async ($, on) => {
+    const { clock, calls } = setup(on, ['NVDA'], ['terminal'], US_OPEN)
+    await $.session.start(START)
+    await clock.advance(60_000)
+    expect(calls.yahoo).toBe(1 + 2)
+  })
+
+  test('an older Yahoo snapshot never replaces a newer quote', async ($, on) => {
+    const answers = [
+      { NVDA: { timestamp: [200], fulldayPrice: 250, chartPreviousClose: 200 } },
+      { NVDA: { timestamp: [100], fulldayPrice: 210, chartPreviousClose: 200 } },
+    ]
+    mock.store(on, { watchlist: ['NVDA'] })
+    const clock = mock.clock(on, { now: US_OPEN })
+    on('http.fetch', async () => ({ value: { status: 200, ok: true, headers: {}, text: JSON.stringify(answers.shift() ?? {}) } }))
+    on('command.register', async ($, e) => ({ value: { command: e.name } }))
+    on('session.surfaces', async () => ({ value: ['terminal'] }))
+    on('session.start', async ($, e) => ({ cwd: e.cwd }))
+    await $.session.start(START)
+    await clock.advance(5_000)
+
+    const listed = await $.command.run({ command: 'stock', args: 'list' } as never)
+    expect(listed).toMatchObject({ text: 'NVDA 250 ▲25.00%' })
   })
 
   test('/stock off hides the band', async ($, on) => {

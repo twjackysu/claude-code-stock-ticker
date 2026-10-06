@@ -4,11 +4,11 @@
 
 **Claude 在寫 code，你在看盤。**
 
-在 Claude Code 輸入框上方即時顯示台股報價，等 Claude 跑任務的空檔，順便看一下自選股。
+在 Claude Code 輸入框上方即時顯示台股、美股報價，等 Claude 跑任務的空檔，順便看一下自選股。
 
 ![在 Claude Code 桌面版的樣子](docs/screenshot.png)
 
-- 上市、上櫃、ETF、加權指數、櫃買指數都支援
+- 台股上市、上櫃、ETF、加權、櫃買，美股個股與道瓊、標普、那斯達克、費半
 - 盤中每 5 秒更新，大漲大跌跳通知
 - CLI 和桌面版都能用，裝好不用設定
 
@@ -31,7 +31,7 @@
 ## 用法
 
 ```
-/stock add 2330 2454 櫃買   加入自選股
+/stock add 2330 NVDA 費半   加入自選股（數字是台股，英文是美股）
 /stock rm 2330              移除
 /stock list                 列出報價
 /stock off                  隱藏（/stock on 顯示）
@@ -45,7 +45,8 @@
 
 | 設定 | 預設 | 說明 |
 | --- | --- | --- |
-| `refreshSeconds` 更新秒數 | `5` | 最少 5 秒 |
+| `refreshSeconds` 台股更新秒數 | `5` | 最少 5 秒 |
+| `usRefreshSeconds` 美股更新秒數 | `5` | 最少 5 秒 |
 | `colors` 漲跌顏色 | `red-up` | `red-up` 紅漲綠跌，`green-up` 綠漲紅跌 |
 | `alertPercent` 通知門檻（%） | `3` | 每檔每天最多通知一次，`0` 關閉 |
 
@@ -69,8 +70,8 @@ claude mcp add --transport http --scope user tw-stock https://TW-Stock-MCP-Serve
 
 ## 說明
 
-- 資料來源：證交所 MIS 公開即時報價
-- 非交易時段（台北時間平日 08:30–14:00 以外）停止輪詢，保留最後報價
+- 資料來源：台股為證交所 MIS 公開即時報價，美股為 Yahoo Finance
+- 非交易時段停止輪詢，保留最後報價。台股為台北時間平日 08:30–14:00，美股為美東時間平日 09:30–16:00（台北時間約 21:30–04:00，冬令時間 22:30–05:00）
 - 只有畫面上正在看的 session 會輪詢，切到別的 session 就暫停
 - 報價僅供參考，不構成投資建議
 
