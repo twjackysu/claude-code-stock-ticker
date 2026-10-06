@@ -4,11 +4,7 @@
 
 一邊讓 Claude 寫程式，一邊在輸入框上方看台股即時報價。
 
-```
-加權 49823 ▲0.22%   台積電 2585 ▲0.39%   元大台灣50 198.5 ▼0.15%   鴻海 200.5 ▼2.20%
-```
-
-<!-- TODO: demo GIF -->
+![在 Claude Code 桌面版的樣子](docs/screenshot.png)
 
 - 盤中每 30 秒更新上市櫃即時報價
 - 支援個股、ETF、加權指數、櫃買指數
@@ -43,7 +39,7 @@ claude plugin marketplace add twjackysu/claude-code-stock-ticker && claude plugi
 | `/stock list` | 列出自選股與最新報價 |
 | `/stock off` / `/stock on` | 隱藏／顯示報價列 |
 
-預設自選股：加權、2330、0050、2317、2454，跨 session 保留。
+預設自選股：加權、2330、0050，跨 session 保留。
 
 ## 設定
 

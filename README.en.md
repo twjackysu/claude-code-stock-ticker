@@ -4,11 +4,7 @@
 
 Watch the Taiwan stock market right above your Claude Code prompt while Claude works.
 
-```
-加權 49823 ▲0.22%   台積電 2585 ▲0.39%   元大台灣50 198.5 ▼0.15%   鴻海 200.5 ▼2.20%
-```
-
-<!-- TODO: demo GIF -->
+![Stock ticker band above the prompt in the Claude Code desktop app](docs/screenshot.png)
 
 - Live TWSE / TPEx quotes, refreshed every 30 seconds during market hours
 - Stocks, ETFs and the TAIEX / TPEx indices
@@ -43,7 +39,7 @@ claude plugin marketplace add twjackysu/claude-code-stock-ticker && claude plugi
 | `/stock list` | Show the watchlist with the latest quotes |
 | `/stock off` / `/stock on` | Hide or show the band |
 
-The default watchlist is 加權, 2330, 0050, 2317 and 2454. It is kept across sessions.
+The default watchlist is 加權 (TAIEX), 2330 and 0050. It is kept across sessions.
 
 ## Settings
 

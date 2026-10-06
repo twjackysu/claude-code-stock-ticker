@@ -16,7 +16,7 @@ const INDEX_ALIASES: Record<string, string> = {
 
 const INDEX_LABELS: Record<string, string> = { t00: '加權', o00: '櫃買' }
 
-export const DEFAULT_WATCHLIST = ['t00', '2330', '0050', '2317', '2454']
+export const DEFAULT_WATCHLIST = ['t00', '2330', '0050']
 
 /** Normalizes what someone typed into a MIS code, or undefined when it is not one. */
 export function normalizeSymbol(raw: string): string | undefined {
