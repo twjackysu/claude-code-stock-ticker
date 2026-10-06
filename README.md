@@ -37,7 +37,23 @@ claude plugin marketplace add twjackysu/claude-code-stock-ticker && claude plugi
 /stock off                  隱藏（/stock on 顯示）
 ```
 
-預設自選股是加權、2330、0050，最多 10 檔。更新頻率、紅漲綠跌或綠漲紅跌、通知門檻可以在 `/config` 的 **stock-ticker** 調整。
+預設自選股是加權、2330、0050，最多 10 檔。
+
+## 設定
+
+在 Claude Code 輸入 `/config`，找到 **stock-ticker** 就能調整：
+
+| 設定 | 預設 | 說明 |
+| --- | --- | --- |
+| `refreshSeconds` 更新秒數 | `5` | 最少 5 秒 |
+| `colors` 漲跌顏色 | `red-up` | `red-up` 紅漲綠跌，`green-up` 綠漲紅跌 |
+| `alertPercent` 通知門檻（%） | `3` | 每檔每天最多通知一次，`0` 關閉 |
+
+也可以在安裝時直接指定，例如改成每 10 秒更新：
+
+```bash
+claude plugin install stock-ticker@claude-code-stock-ticker --config refreshSeconds=10
+```
 
 ## 說明
 

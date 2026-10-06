@@ -37,7 +37,23 @@ Or inside Claude Code:
 /stock off                  hide (/stock on to show)
 ```
 
-The default watchlist is TAIEX, 2330 and 0050, up to 10 symbols. Refresh rate, red-up or green-up colors, and the alert threshold are in `/config` under **stock-ticker**.
+The default watchlist is TAIEX, 2330 and 0050, up to 10 symbols.
+
+## Settings
+
+Type `/config` in Claude Code and find **stock-ticker**:
+
+| Setting | Default | |
+| --- | --- | --- |
+| `refreshSeconds` | `5` | Refresh interval in seconds, minimum 5 |
+| `colors` | `red-up` | `red-up` for red gains, `green-up` for green gains |
+| `alertPercent` | `3` | Toast once a day per symbol past this move; `0` turns alerts off |
+
+You can also set them at install time, for example a 10-second refresh:
+
+```bash
+claude plugin install stock-ticker@claude-code-stock-ticker --config refreshSeconds=10
+```
 
 ## Notes
 
