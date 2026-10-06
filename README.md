@@ -63,11 +63,16 @@ echo '{"refreshSeconds":"10"}' | claude plugin configure stock-ticker@claude-cod
 
 Third-party plugins don't update on their own by default. In the CLI, type `/plugin`, open **Installed**, select stock-ticker and choose **Update now**. To update automatically, open **Marketplaces**, select claude-code-stock-ticker and choose **Enable auto-update**.
 
-Or run this in a terminal:
+Or run this in a terminal (refreshing the marketplace first lets Claude Code see the new version):
 
 ```bash
-claude plugin update stock-ticker@claude-code-stock-ticker
+claude plugin marketplace update claude-code-stock-ticker && claude plugin update stock-ticker@claude-code-stock-ticker
 ```
+
+## What it connects to
+
+- `mis.twse.com.tw` for Taiwan quotes and `query1.finance.yahoo.com` for US quotes, sending only the symbols on your watchlist.
+- Nothing else: it reads nothing from your project or conversation, and sends no telemetry.
 
 ## Notes
 

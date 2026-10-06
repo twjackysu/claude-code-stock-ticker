@@ -63,10 +63,10 @@ echo '{"refreshSeconds":"10"}' | claude plugin configure stock-ticker@claude-cod
 
 第三方 plugin 預設不會自動更新。CLI 在 Claude Code 裡輸入 `/plugin`，到 **Installed** 選 stock-ticker 按 **Update now**；想自動更新的話，到 **Marketplaces** 選 claude-code-stock-ticker 按 **Enable auto-update**。
 
-也可以在終端機執行：
+也可以在終端機執行（先刷新 marketplace，Claude Code 才看得到新版）：
 
 ```bash
-claude plugin update stock-ticker@claude-code-stock-ticker
+claude plugin marketplace update claude-code-stock-ticker && claude plugin update stock-ticker@claude-code-stock-ticker
 ```
 
 ## 搭配 TWSEMCPServer
@@ -78,6 +78,11 @@ claude mcp add --transport http --scope user tw-stock https://TW-Stock-MCP-Serve
 ```
 
 線上服務有使用量上限，用量大的話可以參考 [TWSEMCPServer](https://github.com/twjackysu/TWSEMCPServer) 自行架設。
+
+## 連線到哪裡
+
+- 台股報價連 `mis.twse.com.tw`，美股報價連 `query1.finance.yahoo.com`，只送出你自選股的代號。
+- 除此之外不連任何地方：不讀取你的專案或對話內容，也不回傳任何使用資料。
 
 ## 說明
 
