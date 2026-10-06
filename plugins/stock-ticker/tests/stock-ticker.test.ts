@@ -178,13 +178,13 @@ describe('band', () => {
 
     const added = await $.command.run({ command: 'stock', args: 'add 2317 加權 $$' } as never)
     expect(added).toMatchObject({ text: expect.stringContaining('2330 2317 t00') })
-    expect(added).toMatchObject({ text: expect.stringContaining('無法辨識：$$') })
+    expect(added).toMatchObject({ text: expect.stringContaining('無法辨識 Unknown：$$') })
 
     const removed = await $.command.run({ command: 'stock', args: 'rm 2330' } as never)
-    expect(removed).toMatchObject({ text: '自選股：2317 t00' })
+    expect(removed).toMatchObject({ text: '自選股 Watchlist：2317 t00' })
 
     const missing = await $.command.run({ command: 'stock', args: 'rm 4920' } as never)
-    expect(missing).toMatchObject({ text: '自選股：2317 t00\n不在自選股：4920' })
+    expect(missing).toMatchObject({ text: '自選股 Watchlist：2317 t00\n不在自選股 Not in watchlist：4920' })
   })
 
   test('/stock add stops at 10 symbols and says which were left out', async ($, on) => {
@@ -193,7 +193,7 @@ describe('band', () => {
     await clock.settle()
 
     const added = await $.command.run({ command: 'stock', args: 'add 2330 2317 2454' } as never)
-    expect(added).toMatchObject({ text: expect.stringContaining('最多 10 檔，未加入：2317 2454') })
+    expect(added).toMatchObject({ text: expect.stringContaining('未加入 Over the 10-symbol limit：2317 2454') })
     expect(added).toMatchObject({ text: expect.stringContaining('1109 2330') })
   })
 
@@ -296,9 +296,9 @@ describe('band', () => {
     await clock.settle()
 
     const cleared = await $.command.run({ command: 'stock', args: 'rm ALL' } as never)
-    expect(cleared).toMatchObject({ text: expect.stringContaining('自選股已清空') })
+    expect(cleared).toMatchObject({ text: expect.stringContaining('自選股已清空 Watchlist cleared') })
     const listed = await $.command.run({ command: 'stock', args: 'list' } as never)
-    expect(listed).toMatchObject({ text: '自選股：(空)' })
+    expect(listed).toMatchObject({ text: '自選股 Watchlist：(空 empty)' })
 
     const ui = await $.ui.mount({ plugin: 'stock-ticker', surface: 'terminal', ...BAND })
     expect(await ui.find({ type: 'Text', text: /台積電|NVDA/ })).toBeUndefined()
@@ -306,7 +306,7 @@ describe('band', () => {
 
     // ALL as a symbol still means Allstate.
     const added = await $.command.run({ command: 'stock', args: 'add ALL' } as never)
-    expect(added).toMatchObject({ text: '自選股：ALL' })
+    expect(added).toMatchObject({ text: '自選股 Watchlist：ALL' })
   })
 
   test('/stock off hides the band', async ($, on) => {

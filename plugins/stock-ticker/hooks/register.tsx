@@ -33,7 +33,9 @@ async function loadWatchlist($: EngineInterface): Promise<string[]> {
 }
 
 const MARKETS: readonly Market[] = ['tw', 'us']
-const MARKET_NAMES: Record<Market, string> = { tw: '台股', us: '美股' }
+const MARKET_NAMES: Record<Market, string> = { tw: '台股 Taiwan', us: '美股 US' }
+// Replies read in Chinese then English, for both audiences.
+const listText = (codes: readonly string[]) => `自選股 Watchlist：${codes.join(' ') || '(空 empty)'}`
 
 /** This session's polling per market, and which big-move toasts already fired today. */
 type Poll = {
@@ -174,7 +176,7 @@ export const register: Register = (on, options) => {
       await $.store.set(WATCHLIST_KEY, [])
       await refreshAll($, poll, { force: true })
 
-      return { text: '自選股已清空，/stock add 2330 NVDA 加入新的。' }
+      return { text: '自選股已清空 Watchlist cleared。/stock add 2330 NVDA 加入新的 to add more.' }
     }
 
     if (verb === 'add' || isRemove) {
@@ -189,19 +191,21 @@ export const register: Register = (on, options) => {
       await refreshAll($, poll, { force: true })
       const absent = verb === 'add' ? [] : valid.filter(c => !watchlist.includes(c))
       const notes = [
-        invalid.length > 0 ? `無法辨識：${invalid.join(' ')}` : '',
-        absent.length > 0 ? `不在自選股：${absent.join(' ')}` : '',
-        overLimit.length > 0 ? `最多 ${MAX_SYMBOLS} 檔，未加入：${overLimit.join(' ')}` : '',
+        invalid.length > 0 ? `無法辨識 Unknown：${invalid.join(' ')}` : '',
+        absent.length > 0 ? `不在自選股 Not in watchlist：${absent.join(' ')}` : '',
+        overLimit.length > 0 ? `最多 ${MAX_SYMBOLS} 檔，未加入 Over the ${MAX_SYMBOLS}-symbol limit：${overLimit.join(' ')}` : '',
       ].filter(Boolean)
 
-      return { text: [`自選股：${nextList.join(' ') || '(空)'}`, ...notes].join('\n') }
+      return { text: [listText(nextList), ...notes].join('\n') }
     }
 
     if (verb === 'on' || verb === 'off') {
       await $.store.set(HIDDEN_KEY, verb === 'off')
       await update($, isHidden, () => verb === 'off')
 
-      return { text: verb === 'off' ? '報價列已隱藏，/stock on 重新顯示。' : '報價列已顯示。' }
+      return {
+        text: verb === 'off' ? '報價列已隱藏 Ticker hidden。/stock on 重新顯示 to show it again.' : '報價列已顯示 Ticker shown。',
+      }
     }
 
     if (verb === 'list') {
@@ -210,10 +214,10 @@ export const register: Register = (on, options) => {
         [q.symbol, q.label === q.symbol ? '' : q.label, formatPrice(q.price), formatChange(q.changePercent)].filter(Boolean).join(' '),
       )
 
-      return { text: lines.length > 0 ? lines.join('\n') : `自選股：${watchlist.join(' ') || '(空)'}` }
+      return { text: lines.length > 0 ? lines.join('\n') : listText(watchlist) }
     }
 
-    return { text: '用法：/stock add 2330 NVDA | /stock rm 2330 | /stock rm all | /stock list | /stock on | /stock off' }
+    return { text: '用法 Usage：/stock add 2330 NVDA | /stock rm 2330 | /stock rm all | /stock list | /stock on | /stock off' }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -224,7 +228,7 @@ export const register: Register = (on, options) => {
     const { Box, Text } = $.ui.resolve(e)
 
     if (list.length === 0) {
-      return failure === null ? next(e) : <Text dimColor>報價暫時無法取得（{failure}）</Text>
+      return failure === null ? next(e) : <Text dimColor>報價暫時無法取得 Quotes unavailable（{failure}）</Text>
     }
 
     // Keep whole quotes that fit on one row; never cut one in half. When some
