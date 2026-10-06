@@ -1,0 +1,29 @@
+{
+  "name": "stock-ticker",
+  "version": "0.1.0",
+  "description": "Live Taiwan stock ticker band above the Claude Code prompt: watch TWSE/TPEx quotes while Claude works.",
+  "author": { "name": "twjackysu" },
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "refreshSeconds": {
+      "type": "number",
+      "title": "Refresh interval (seconds)",
+      "description": "How often quotes refresh. Minimum 10.",
+      "default": 30
+    },
+    "colors": {
+      "type": "string",
+      "title": "Up/down colors",
+      "description": "red-up: red for gains (Taiwan/China/Japan convention). green-up: green for gains (US/EU convention).",
+      "default": "red-up",
+      "options": ["red-up", "green-up"]
+    },
+    "alertPercent": {
+      "type": "number",
+      "title": "Alert threshold (%)",
+      "description": "Toast once a day when a symbol moves at least this much. 0 turns alerts off.",
+      "default": 3
+    }
+  }
+}
