@@ -104,7 +104,8 @@ describe('quotes', () => {
     expect(quotes[0]?.label).toBe('費半')
     expect(quotes[0]?.changePercent.toFixed(2)).toBe('-2.00')
     expect(quotes[1]?.changePercent.toFixed(2)).toBe('1.45')
-    expect(decodeURIComponent(yahooUrl(['NVDA', '^SOX']))).toContain('symbols=NVDA,^SOX&')
+    expect(decodeURIComponent(yahooUrl(['NVDA', '^SOX'], 1234))).toContain('symbols=NVDA,^SOX&')
+    expect(yahooUrl(['NVDA'], 1234)).not.toBe(yahooUrl(['NVDA'], 5678))
   })
 
   test('knows the trading hours of each market, daylight saving included', () => {

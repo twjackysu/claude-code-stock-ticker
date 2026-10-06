@@ -60,9 +60,13 @@ export function misUrl(codes: readonly string[]): string {
   return `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${encodeURIComponent(channels.join('|'))}&json=1&delay=0`
 }
 
-/** One Yahoo Finance request for every US code. */
-export function yahooUrl(codes: readonly string[]): string {
-  return `https://query1.finance.yahoo.com/v8/finance/spark?symbols=${encodeURIComponent(codes.join(','))}&range=1d&interval=1d`
+/**
+ * One Yahoo Finance request for every US code. Yahoo's edge caches answer a
+ * repeated URL with a snapshot up to several seconds old, so `now` makes each
+ * request's URL its own.
+ */
+export function yahooUrl(codes: readonly string[], now: number): string {
+  return `https://query1.finance.yahoo.com/v8/finance/spark?symbols=${encodeURIComponent(codes.join(','))}&range=1d&interval=1d&_=${now}`
 }
 
 const price = (value: unknown): number | undefined => {

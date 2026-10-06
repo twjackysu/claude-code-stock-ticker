@@ -44,11 +44,11 @@ type Poll = {
 }
 
 /** Taiwan quotes come from TWSE MIS; US quotes from Yahoo Finance, which refuses requests without a browser User-Agent. */
-async function fetchQuotes($: EngineInterface, market: Market, codes: readonly string[]): Promise<Quote[]> {
+async function fetchQuotes($: EngineInterface, market: Market, codes: readonly string[], now: number): Promise<Quote[]> {
   const response =
     market === 'tw'
       ? await $.http.fetch(misUrl(codes))
-      : await $.http.fetch(yahooUrl(codes), { headers: { 'User-Agent': 'Mozilla/5.0' } })
+      : await $.http.fetch(yahooUrl(codes, now), { headers: { 'User-Agent': 'Mozilla/5.0' } })
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
 
   return market === 'tw' ? parseMis(response.text, codes) : parseYahoo(response.text, codes)
@@ -78,7 +78,7 @@ async function refresh($: EngineInterface, poll: Poll, market: Market, { force =
   if (poll.isFetching[market]) return
 
   // Merged into the latest list, not one read earlier: the other market may have landed meanwhile.
-  // Yahoo's caches sometimes answer with an older snapshot; a quote never goes back in time.
+  // Should a cache still answer with an older snapshot, a quote never goes back in time.
   const merge = (fresh: Quote[]) => (latest: Quote[]) => {
     const bySymbol = new Map(latest.filter(q => marketOf(q.symbol) !== market).map(q => [q.symbol, q]))
     const previous = new Map(latest.map(q => [q.symbol, q]))
@@ -96,7 +96,7 @@ async function refresh($: EngineInterface, poll: Poll, market: Market, { force =
 
   poll.isFetching[market] = true
   try {
-    const fresh = await fetchQuotes($, market, codes)
+    const fresh = await fetchQuotes($, market, codes, now)
     await update($, quotes, merge(fresh))
     await update($, error, () => null)
     notifyBigMoves($, poll, fresh, now)
