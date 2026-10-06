@@ -43,6 +43,7 @@ The default watchlist is TAIEX, 2330 and 0050, up to 10 symbols. Refresh rate, r
 
 - Data source: TWSE MIS public real-time quotes
 - Outside trading hours (weekdays 08:30–14:00 Taipei time) polling stops and the last quotes stay
+- Only sessions in use poll; a background session idle for 5 minutes pauses
 - Quotes are for reference only. Not investment advice.
 
 ## License

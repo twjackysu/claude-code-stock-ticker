@@ -12,6 +12,8 @@ const WATCHLIST_KEY = 'watchlist'
 const HIDDEN_KEY = 'hidden'
 const MAX_SYMBOLS = 10
 const TAIPEI_OFFSET_MS = 8 * 60 * 60 * 1000
+// A session nobody has typed in for this long stops polling until it is used again.
+const IDLE_MS = 5 * 60 * 1000
 
 async function loadWatchlist($: EngineInterface): Promise<string[]> {
   const stored = await $.store.get(WATCHLIST_KEY)
@@ -28,13 +30,33 @@ function isMarketHours(now: number): boolean {
   return day >= 1 && day <= 5 && minutes >= 8 * 60 + 30 && minutes <= 14 * 60
 }
 
-/** Big-move toasts: the threshold, and which symbol already fired on which Taipei day. */
-type Alerts = { percent: number; seen: Set<string> }
+/**
+ * This session's polling: when it was last used, whether a turn is running,
+ * when quotes last arrived, and which big-move toasts already fired today.
+ *
+ * Every open session runs its own copy of the mod, so only sessions in use
+ * poll: a turn running, or a prompt or /stock within IDLE_MS.
+ */
+type Poll = {
+  refreshMs: number
+  alertPercent: number
+  activeAt: number
+  fetchedAt: number
+  isTurnRunning: boolean
+  isFetching: boolean
+  alerted: Set<string>
+}
 
-async function refresh($: EngineInterface, alerts: Alerts, { force = false } = {}) {
+const isInUse = (poll: Poll, now: number) => poll.isTurnRunning || now - poll.activeAt < IDLE_MS
+
+async function refresh($: EngineInterface, poll: Poll, { force = false } = {}) {
   const now = await $.clock.now()
-  // Outside trading hours the last quotes stand; one fetch fills an empty band.
-  if (!force && !isMarketHours(now) && (await read($, quotes)).length > 0) return
+  if (!force) {
+    // Outside trading hours the last quotes stand; one fetch fills an empty band.
+    if (!isMarketHours(now) && (await read($, quotes)).length > 0) return
+    if (!isInUse(poll, now)) return
+  }
+  if (poll.isFetching) return
 
   const codes = await loadWatchlist($)
   if (codes.length === 0) {
@@ -42,25 +64,33 @@ async function refresh($: EngineInterface, alerts: Alerts, { force = false } = {
     return
   }
 
+  poll.isFetching = true
   try {
     const response = await $.http.fetch(misUrl(codes))
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const next = parseMis(response.text, codes)
+    poll.fetchedAt = now
     await update($, quotes, () => next)
     await update($, error, () => null)
-    notifyBigMoves($, alerts, next, now)
+    notifyBigMoves($, poll, next, now)
   } catch (reason) {
     await update($, error, () => (reason instanceof Error ? reason.message : String(reason)))
+  } finally {
+    poll.isFetching = false
   }
 }
 
-function notifyBigMoves($: EngineInterface, alerts: Alerts, list: Quote[], now: number) {
-  if (alerts.percent <= 0) return
+async function markActive($: EngineInterface, poll: Poll) {
+  poll.activeAt = await $.clock.now()
+}
+
+function notifyBigMoves($: EngineInterface, poll: Poll, list: Quote[], now: number) {
+  if (poll.alertPercent <= 0) return
   const day = new Date(now + TAIPEI_OFFSET_MS).toISOString().slice(0, 10)
   for (const quote of list) {
     const id = `${day}:${quote.symbol}`
-    if (Math.abs(quote.changePercent) < alerts.percent || alerts.seen.has(id)) continue
-    alerts.seen.add(id)
+    if (Math.abs(quote.changePercent) < poll.alertPercent || poll.alerted.has(id)) continue
+    poll.alerted.add(id)
     $.ui.toast(`${quote.label} ${formatPrice(quote.price)} ${formatChange(quote.changePercent)}`)
   }
 }
@@ -80,9 +110,16 @@ function fitRow(list: Quote[], columns: number, gap: number): Quote[] {
 }
 
 export const register: Register = (on, options) => {
-  const refreshMs = Math.max(5, Number(options.refreshSeconds ?? 5)) * 1000
   const isRedUp = options.colors !== 'green-up'
-  const alerts: Alerts = { percent: Number(options.alertPercent ?? 3), seen: new Set() }
+  const poll: Poll = {
+    refreshMs: Math.max(5, Number(options.refreshSeconds ?? 5)) * 1000,
+    alertPercent: Number(options.alertPercent ?? 3),
+    activeAt: 0,
+    fetchedAt: 0,
+    isTurnRunning: false,
+    isFetching: false,
+    alerted: new Set(),
+  }
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -93,14 +130,36 @@ export const register: Register = (on, options) => {
     const wasHidden = (await $.store.get(HIDDEN_KEY)) === true
     await update($, isHidden, () => wasHidden)
 
-    void refresh($, alerts, { force: true })
-    $.clock.every(refreshMs, () => void refresh($, alerts))
+    await markActive($, poll)
+    void refresh($, poll, { force: true })
+    $.clock.every(poll.refreshMs, () => void refresh($, poll))
+
+    return next(e)
+  })
+
+  on('prompt.submit', async ($, e, next) => {
+    await markActive($, poll)
+    void refresh($, poll)
+
+    return next(e)
+  })
+
+  on('turn.start', ($, e, next) => {
+    poll.isTurnRunning = true
+
+    return next(e)
+  })
+
+  on('turn.complete', async ($, e, next) => {
+    poll.isTurnRunning = false
+    await markActive($, poll)
 
     return next(e)
   })
 
   on('command.run', { command: 'stock' }, async ($, e) => {
     const [verb = 'list', ...rest] = e.args.trim().split(/\s+/).filter(Boolean)
+    await markActive($, poll)
     const watchlist = await loadWatchlist($)
 
     if (verb === 'add' || verb === 'rm' || verb === 'remove') {
@@ -112,7 +171,7 @@ export const register: Register = (on, options) => {
       const overLimit = verb === 'add' ? fresh.slice(room) : []
       const nextList = verb === 'add' ? [...watchlist, ...fresh.slice(0, room)] : watchlist.filter(c => !valid.includes(c))
       await $.store.set(WATCHLIST_KEY, nextList)
-      await refresh($, alerts, { force: true })
+      await refresh($, poll, { force: true })
       const absent = verb === 'add' ? [] : valid.filter(c => !watchlist.includes(c))
       const notes = [
         invalid.length > 0 ? `無法辨識：${invalid.join(' ')}` : '',
@@ -142,6 +201,14 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || (await read($, isHidden))) return next(e)
+
+    // Drawn while the quotes are stale: someone came back to an idle session.
+    // A redraw that fresh quotes caused does not count, or polling would keep itself alive.
+    const now = await $.clock.now()
+    if (isMarketHours(now) && now - poll.fetchedAt > poll.refreshMs * 2 && !poll.isFetching) {
+      poll.activeAt = now
+      $.clock.after(0, () => void refresh($, poll))
+    }
 
     const list = await read($, quotes)
     const failure = await read($, error)

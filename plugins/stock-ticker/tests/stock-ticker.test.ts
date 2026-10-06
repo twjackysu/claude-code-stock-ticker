@@ -21,7 +21,11 @@ const MARKET_OPEN = Date.UTC(2026, 9, 6, 2, 0)
 function setup(on: On, watchlist: string[]) {
   mock.store(on, { watchlist })
   const clock = mock.clock(on, { now: MARKET_OPEN })
-  on('http.fetch', async () => ({ value: { status: 200, ok: true, headers: {}, text: MIS } }))
+  const calls = { fetch: 0 }
+  on('http.fetch', async () => {
+    calls.fetch += 1
+    return { value: { status: 200, ok: true, headers: {}, text: MIS } }
+  })
   on('command.register', async ($, e) => ({ value: { command: e.name } }))
   on('session.start', async ($, e) => ({ cwd: e.cwd }))
   // What the engine draws when the band yields.
@@ -30,7 +34,7 @@ function setup(on: On, watchlist: string[]) {
     return h(Text, {}, 'engine') as RenderElement
   })
 
-  return clock
+  return { clock, calls }
 }
 
 const START = { cwd: '/', surface: 'terminal', isInteractive: true } as const
@@ -83,7 +87,7 @@ describe('quotes', () => {
 
 describe('band', () => {
   test('draws the watchlist with red for gains and green for losses', async ($, on) => {
-    const clock = setup(on, ['2330', '2317'])
+    const { clock } = setup(on, ['2330', '2317'])
 
     await $.session.start(START)
     await clock.settle()
@@ -100,7 +104,7 @@ describe('band', () => {
   })
 
   test('green-up flips the colors', { options: { colors: 'green-up' } }, async ($, on) => {
-    const clock = setup(on, ['2330'])
+    const { clock } = setup(on, ['2330'])
 
     await $.session.start(START)
     await clock.settle()
@@ -110,7 +114,7 @@ describe('band', () => {
   })
 
   test('/stock add and rm edit the stored watchlist', async ($, on) => {
-    const clock = setup(on, ['2330'])
+    const { clock } = setup(on, ['2330'])
     await $.session.start(START)
     await clock.settle()
 
@@ -126,7 +130,7 @@ describe('band', () => {
   })
 
   test('/stock add stops at 10 symbols and says which were left out', async ($, on) => {
-    const clock = setup(on, ['1101', '1102', '1103', '1104', '1105', '1106', '1107', '1108', '1109'])
+    const { clock } = setup(on, ['1101', '1102', '1103', '1104', '1105', '1106', '1107', '1108', '1109'])
     await $.session.start(START)
     await clock.settle()
 
@@ -136,7 +140,7 @@ describe('band', () => {
   })
 
   test('a narrow band shows how many quotes did not fit', async ($, on) => {
-    const clock = setup(on, ['2330', 't00', '2317'])
+    const { clock } = setup(on, ['2330', 't00', '2317'])
     await $.session.start(START)
     await clock.settle()
 
@@ -149,8 +153,40 @@ describe('band', () => {
     await ui.unmount()
   })
 
+  test('an idle session stops polling until it is used again', async ($, on) => {
+    const { clock, calls } = setup(on, ['2330'])
+    await $.session.start(START)
+    await clock.settle()
+    expect(calls.fetch).toBe(1)
+
+    await clock.advance(30_000)
+    expect(calls.fetch).toBe(7)
+
+    // Five minutes with no prompt or command: polling stops.
+    await clock.advance(5 * 60_000)
+    const idle = calls.fetch
+    await clock.advance(60_000)
+    expect(calls.fetch).toBe(idle)
+
+    await $.command.run({ command: 'stock', args: 'list' } as never)
+    await clock.advance(10_000)
+    expect(calls.fetch).toBe(idle + 2)
+  })
+
+  test('drawing stale quotes in an idle session fetches again', async ($, on) => {
+    const { clock, calls } = setup(on, ['2330'])
+    await $.session.start(START)
+    await clock.advance(6 * 60_000)
+    const idle = calls.fetch
+
+    const ui = await $.ui.mount({ plugin: 'stock-ticker', surface: 'terminal', ...BAND })
+    await clock.settle()
+    expect(calls.fetch).toBe(idle + 1)
+    await ui.unmount()
+  })
+
   test('/stock off hides the band', async ($, on) => {
-    const clock = setup(on, ['2330'])
+    const { clock } = setup(on, ['2330'])
     await $.session.start(START)
     await clock.settle()
 
