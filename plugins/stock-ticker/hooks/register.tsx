@@ -12,8 +12,6 @@ const WATCHLIST_KEY = 'watchlist'
 const HIDDEN_KEY = 'hidden'
 const MAX_SYMBOLS = 10
 const TAIPEI_OFFSET_MS = 8 * 60 * 60 * 1000
-// A session nobody has typed in for this long stops polling until it is used again.
-const IDLE_MS = 5 * 60 * 1000
 
 async function loadWatchlist($: EngineInterface): Promise<string[]> {
   const stored = await $.store.get(WATCHLIST_KEY)
@@ -30,33 +28,22 @@ function isMarketHours(now: number): boolean {
   return day >= 1 && day <= 5 && minutes >= 8 * 60 + 30 && minutes <= 14 * 60
 }
 
-/**
- * This session's polling: when it was last used, whether a turn is running,
- * when quotes last arrived, and which big-move toasts already fired today.
- *
- * Every open session runs its own copy of the mod, so only sessions someone
- * looks at poll. The desktop app and the phone attach a session while it is
- * on screen and detach it when the person switches away; a terminal raises
- * neither, so a terminal session polls while in use: a turn running, or a
- * prompt or /stock within IDLE_MS.
- */
+/** This session's polling, and which big-move toasts already fired today. */
 type Poll = {
   refreshMs: number
   alertPercent: number
-  activeAt: number
-  fetchedAt: number
-  isTurnRunning: boolean
   isFetching: boolean
   alerted: Set<string>
 }
 
-const isInUse = (poll: Poll, now: number) => poll.isTurnRunning || now - poll.activeAt < IDLE_MS
-
-async function isWatched($: EngineInterface, poll: Poll, now: number): Promise<boolean> {
-  const surfaces = await $.session.surfaces()
-  if (surfaces.some(surface => surface !== 'terminal')) return true
-
-  return surfaces.includes('terminal') && isInUse(poll, now)
+/**
+ * Every open session runs its own copy of the mod, so only a session on
+ * screen polls: the desktop app and the phone detach a session when the
+ * person switches away and attach it on return, and a terminal session is
+ * drawn by its REPL for as long as it runs.
+ */
+async function isOnScreen($: EngineInterface): Promise<boolean> {
+  return (await $.session.surfaces()).length > 0
 }
 
 async function refresh($: EngineInterface, poll: Poll, { force = false } = {}) {
@@ -64,7 +51,7 @@ async function refresh($: EngineInterface, poll: Poll, { force = false } = {}) {
   if (!force) {
     // Outside trading hours the last quotes stand; one fetch fills an empty band.
     if (!isMarketHours(now) && (await read($, quotes)).length > 0) return
-    if (!(await isWatched($, poll, now))) return
+    if (!(await isOnScreen($))) return
   }
   if (poll.isFetching) return
 
@@ -79,7 +66,6 @@ async function refresh($: EngineInterface, poll: Poll, { force = false } = {}) {
     const response = await $.http.fetch(misUrl(codes))
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const next = parseMis(response.text, codes)
-    poll.fetchedAt = now
     await update($, quotes, () => next)
     await update($, error, () => null)
     notifyBigMoves($, poll, next, now)
@@ -88,10 +74,6 @@ async function refresh($: EngineInterface, poll: Poll, { force = false } = {}) {
   } finally {
     poll.isFetching = false
   }
-}
-
-async function markActive($: EngineInterface, poll: Poll) {
-  poll.activeAt = await $.clock.now()
 }
 
 function notifyBigMoves($: EngineInterface, poll: Poll, list: Quote[], now: number) {
@@ -124,9 +106,6 @@ export const register: Register = (on, options) => {
   const poll: Poll = {
     refreshMs: Math.max(5, Number(options.refreshSeconds ?? 5)) * 1000,
     alertPercent: Number(options.alertPercent ?? 3),
-    activeAt: 0,
-    fetchedAt: 0,
-    isTurnRunning: false,
     isFetching: false,
     alerted: new Set(),
   }
@@ -140,36 +119,14 @@ export const register: Register = (on, options) => {
     const wasHidden = (await $.store.get(HIDDEN_KEY)) === true
     await update($, isHidden, () => wasHidden)
 
-    await markActive($, poll)
     void refresh($, poll, { force: true })
     $.clock.every(poll.refreshMs, () => void refresh($, poll))
 
     return next(e)
   })
 
-  on('prompt.submit', async ($, e, next) => {
-    await markActive($, poll)
-    void refresh($, poll)
-
-    return next(e)
-  })
-
-  on('turn.start', ($, e, next) => {
-    poll.isTurnRunning = true
-
-    return next(e)
-  })
-
-  on('turn.complete', async ($, e, next) => {
-    poll.isTurnRunning = false
-    await markActive($, poll)
-
-    return next(e)
-  })
-
   on('command.run', { command: 'stock' }, async ($, e) => {
     const [verb = 'list', ...rest] = e.args.trim().split(/\s+/).filter(Boolean)
-    await markActive($, poll)
     const watchlist = await loadWatchlist($)
 
     if (verb === 'add' || verb === 'rm' || verb === 'remove') {
@@ -211,12 +168,6 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || (await read($, isHidden))) return next(e)
-
-    // Drawn while the quotes are stale: someone came back to an idle terminal
-    // session, so the next tick polls again. A redraw that fresh quotes caused
-    // does not count, or polling would keep itself alive.
-    const now = await $.clock.now()
-    if (isMarketHours(now) && now - poll.fetchedAt > poll.refreshMs * 2) poll.activeAt = now
 
     const list = await read($, quotes)
     const failure = await read($, error)

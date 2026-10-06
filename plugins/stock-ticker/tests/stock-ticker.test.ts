@@ -162,24 +162,13 @@ describe('band', () => {
     await ui.unmount()
   })
 
-  test('an idle session stops polling until it is used again', async ($, on) => {
+  test('a terminal session keeps polling however long it sits idle', async ($, on) => {
     const { clock, calls } = setup(on, ['2330'])
     await $.session.start(START)
     await clock.settle()
-    expect(calls.fetch).toBe(1)
 
-    await clock.advance(30_000)
-    expect(calls.fetch).toBe(7)
-
-    // Five minutes with no prompt or command: polling stops.
-    await clock.advance(5 * 60_000)
-    const idle = calls.fetch
-    await clock.advance(60_000)
-    expect(calls.fetch).toBe(idle)
-
-    await $.command.run({ command: 'stock', args: 'list' } as never)
-    await clock.advance(10_000)
-    expect(calls.fetch).toBe(idle + 2)
+    await clock.advance(30 * 60_000)
+    expect(calls.fetch).toBe(1 + 360)
   })
 
   test('a desktop session polls while on screen and stops once switched away', async ($, on) => {
@@ -203,20 +192,6 @@ describe('band', () => {
     expect(calls.fetch).toBe(watched)
     await clock.advance(10_000)
     expect(calls.fetch).toBe(watched + 2)
-  })
-
-  test('drawing stale quotes in an idle terminal session resumes polling', async ($, on) => {
-    const { clock, calls } = setup(on, ['2330'])
-    await $.session.start(START)
-    await clock.advance(6 * 60_000)
-    const idle = calls.fetch
-
-    const ui = await $.ui.mount({ plugin: 'stock-ticker', surface: 'terminal', ...BAND })
-    await clock.settle()
-    expect(calls.fetch).toBe(idle)
-    await clock.advance(5_000)
-    expect(calls.fetch).toBe(idle + 1)
-    await ui.unmount()
   })
 
   test('/stock off hides the band', async ($, on) => {
