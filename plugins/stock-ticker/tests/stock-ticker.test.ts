@@ -290,7 +290,7 @@ describe('band', () => {
   })
 
   test('settings survive into the next session', async ($, on) => {
-    mock.store(on, { watchlist: ['2330'], settings: { refreshSeconds: { tw: 20, us: 8 }, colors: 'green-up', alertPercent: 0 } })
+    mock.store(on, { watchlist: ['2330'], settings: { refreshSeconds: { tw: 20, us: 8 }, colors: 'red-up', alertPercent: 0 } })
     const clock = mock.clock(on, { now: MARKET_OPEN })
     on('http.fetch', async () => ({ value: { status: 200, ok: true, headers: {}, text: MIS } }))
     on('command.register', async ($, e) => ({ value: { command: e.name } }))
@@ -301,7 +301,7 @@ describe('band', () => {
 
     const shown = await $.command.run({ command: 'stock', args: 'settings' } as never)
     expect(shown).toMatchObject({
-      text: '更新秒數 Refresh：美股 US 8s，台股 Taiwan 20s\n漲跌顏色 Colors：綠漲紅跌 green-up\n通知已關閉 Alerts off',
+      text: '更新秒數 Refresh：美股 US 8s，台股 Taiwan 20s\n漲跌顏色 Colors：紅漲綠跌 red-up\n通知已關閉 Alerts off',
     })
   })
 
