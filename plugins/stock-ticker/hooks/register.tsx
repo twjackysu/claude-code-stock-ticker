@@ -18,7 +18,7 @@ import {
   yahooUrl,
 } from './quotes'
 
-const DEFAULT_SETTINGS: TickerSettings = { refreshSeconds: { tw: 15, us: 15 }, colors: 'red-up', alertPercent: 3 }
+const DEFAULT_SETTINGS: TickerSettings = { refreshSeconds: { tw: 15, us: 15 }, colors: 'green-up', alertPercent: 3 }
 const MIN_REFRESH_SECONDS = 5
 
 const quotes = atom({ plugin: 'stock-ticker', key: 'quotes' } as const, [] as Quote[])
@@ -48,7 +48,7 @@ async function loadSettings($: EngineInterface): Promise<TickerSettings> {
       tw: seconds(stored.refreshSeconds?.tw, DEFAULT_SETTINGS.refreshSeconds.tw),
       us: seconds(stored.refreshSeconds?.us, DEFAULT_SETTINGS.refreshSeconds.us),
     },
-    colors: stored.colors === 'green-up' ? 'green-up' : DEFAULT_SETTINGS.colors,
+    colors: stored.colors === 'red-up' || stored.colors === 'green-up' ? stored.colors : DEFAULT_SETTINGS.colors,
     alertPercent:
       typeof stored.alertPercent === 'number' && stored.alertPercent >= 0 ? stored.alertPercent : DEFAULT_SETTINGS.alertPercent,
   }
@@ -255,7 +255,7 @@ export const register: Register = on => {
     if (verb === 'color' || verb === 'colors') {
       const choice = rest[0]?.toLowerCase()
       if (choice !== 'red-up' && choice !== 'green-up') {
-        return { text: '用 red-up（紅漲綠跌）或 green-up（綠漲紅跌） Use red-up or green-up：/stock color green-up' }
+        return { text: '用 green-up（綠漲紅跌）或 red-up（紅漲綠跌） Use green-up or red-up：/stock color red-up' }
       }
       const next = await saveSettings($, s => ({ ...s, colors: choice }))
 

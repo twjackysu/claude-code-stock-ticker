@@ -53,7 +53,7 @@
 ```
 /stock refresh 5            美股每 5 秒更新（預設 15 秒，最少 5 秒）
 /stock refresh tw 10        台股每 10 秒更新（預設 15 秒，最少 5 秒）
-/stock color green-up       綠漲紅跌；red-up（預設）是紅漲綠跌
+/stock color red-up         紅漲綠跌（台股習慣）；green-up（預設）是綠漲紅跌
 /stock alert 5              漲跌超過 5% 時通知，每檔每天一次（預設 3，0 關閉）
 /stock settings             顯示目前設定
 ```

@@ -144,7 +144,7 @@ describe('quotes', () => {
 })
 
 describe('band', () => {
-  test('draws the watchlist with red for gains and green for losses', async ($, on) => {
+  test('draws the watchlist with green for gains and red for losses by default', async ($, on) => {
     const { clock } = setup(on, ['2330', '2317'])
 
     await $.session.start(START)
@@ -154,27 +154,27 @@ describe('band', () => {
       const ui = await $.ui.mount({ plugin: 'stock-ticker', surface, ...BAND })
       const up = await ui.find({ type: 'Text', text: '▲0.39%' })
       const down = await ui.find({ type: 'Text', text: '▼2.20%' })
-      expect(up?.props.color).toBe('red')
-      expect(down?.props.color).toBe('green')
+      expect(up?.props.color).toBe('green')
+      expect(down?.props.color).toBe('red')
       expect(await ui.find({ type: 'Text', text: /台積電/ })).toBeDefined()
       await ui.unmount()
     }
   })
 
-  test('/stock color green-up flips the colors at once', async ($, on) => {
+  test('/stock color red-up flips the colors at once', async ($, on) => {
     const { clock } = setup(on, ['2330'])
     await $.session.start(START)
     await clock.settle()
     const ui = await $.ui.mount({ plugin: 'stock-ticker', surface: 'terminal', ...BAND })
-    expect((await ui.find({ type: 'Text', text: '▲0.39%' }))?.props.color).toBe('red')
-
-    const set = await $.command.run({ command: 'stock', args: 'color green-up' } as never)
-    expect(set).toMatchObject({ text: '漲跌顏色 Colors：綠漲紅跌 green-up' })
     expect((await ui.find({ type: 'Text', text: '▲0.39%' }))?.props.color).toBe('green')
+
+    const set = await $.command.run({ command: 'stock', args: 'color red-up' } as never)
+    expect(set).toMatchObject({ text: '漲跌顏色 Colors：紅漲綠跌 red-up' })
+    expect((await ui.find({ type: 'Text', text: '▲0.39%' }))?.props.color).toBe('red')
     await ui.unmount()
 
     const wrong = await $.command.run({ command: 'stock', args: 'color blue' } as never)
-    expect(wrong).toMatchObject({ text: expect.stringContaining('green-up') })
+    expect(wrong).toMatchObject({ text: expect.stringContaining('red-up') })
   })
 
   test('/stock add and rm edit the stored watchlist', async ($, on) => {
@@ -258,7 +258,7 @@ describe('band', () => {
     const ui = await $.ui.mount({ plugin: 'stock-ticker', surface: 'terminal', ...BAND })
     expect(await ui.find({ type: 'Text', text: /NVDA/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /台積電/ })).toBeDefined()
-    expect((await ui.find({ type: 'Text', text: '▲1.45%' }))?.props.color).toBe('red')
+    expect((await ui.find({ type: 'Text', text: '▲1.45%' }))?.props.color).toBe('green')
     await ui.unmount()
   })
 
