@@ -169,7 +169,7 @@ describe('band', () => {
     expect((await ui.find({ type: 'Text', text: '▲0.39%' }))?.props.color).toBe('green')
 
     const set = await $.command.run({ command: 'stock', args: 'color red-up' } as never)
-    expect(set).toMatchObject({ text: '漲跌顏色 Colors：紅漲綠跌 red-up' })
+    expect(set).toMatchObject({ text: 'Colors: red for gains (red-up)' })
     expect((await ui.find({ type: 'Text', text: '▲0.39%' }))?.props.color).toBe('red')
     await ui.unmount()
 
@@ -184,13 +184,13 @@ describe('band', () => {
 
     const added = await $.command.run({ command: 'stock', args: 'add 2317 加權 $$' } as never)
     expect(added).toMatchObject({ text: expect.stringContaining('2330 2317 t00') })
-    expect(added).toMatchObject({ text: expect.stringContaining('無法辨識 Unknown：$$') })
+    expect(added).toMatchObject({ text: expect.stringContaining('Unknown: $$') })
 
     const removed = await $.command.run({ command: 'stock', args: 'rm 2330' } as never)
-    expect(removed).toMatchObject({ text: '自選股 Watchlist：2317 t00' })
+    expect(removed).toMatchObject({ text: 'Watchlist: 2317 t00' })
 
     const missing = await $.command.run({ command: 'stock', args: 'rm 4920' } as never)
-    expect(missing).toMatchObject({ text: '自選股 Watchlist：2317 t00\n不在自選股 Not in watchlist：4920' })
+    expect(missing).toMatchObject({ text: 'Watchlist: 2317 t00\nNot in watchlist: 4920' })
   })
 
   test('/stock add stops at 10 symbols and says which were left out', async ($, on) => {
@@ -199,7 +199,7 @@ describe('band', () => {
     await clock.settle()
 
     const added = await $.command.run({ command: 'stock', args: 'add 2330 2317 2454' } as never)
-    expect(added).toMatchObject({ text: expect.stringContaining('未加入 Over the 10-symbol limit：2317 2454') })
+    expect(added).toMatchObject({ text: expect.stringContaining('Over the 10-symbol limit: 2317 2454') })
     expect(added).toMatchObject({ text: expect.stringContaining('1109 2330') })
   })
 
@@ -278,12 +278,12 @@ describe('band', () => {
     await clock.settle()
 
     const us = await $.command.run({ command: 'stock', args: 'refresh 30' } as never)
-    expect(us).toMatchObject({ text: '更新秒數 Refresh：美股 US 30s，台股 Taiwan 15s' })
+    expect(us).toMatchObject({ text: 'Refresh: US 30s, Taiwan 15s' })
     await clock.advance(60_000)
     expect(calls.yahoo).toBe(1 + 2)
 
     const tw = await $.command.run({ command: 'stock', args: 'refresh tw 10' } as never)
-    expect(tw).toMatchObject({ text: '更新秒數 Refresh：美股 US 30s，台股 Taiwan 10s' })
+    expect(tw).toMatchObject({ text: 'Refresh: US 30s, Taiwan 10s' })
 
     const tooFast = await $.command.run({ command: 'stock', args: 'refresh 1' } as never)
     expect(tooFast).toMatchObject({ text: expect.stringContaining('Seconds must be 5 or more') })
@@ -301,7 +301,7 @@ describe('band', () => {
 
     const shown = await $.command.run({ command: 'stock', args: 'settings' } as never)
     expect(shown).toMatchObject({
-      text: '更新秒數 Refresh：美股 US 8s，台股 Taiwan 20s\n漲跌顏色 Colors：紅漲綠跌 red-up\n通知已關閉 Alerts off',
+      text: 'Refresh: US 8s, Taiwan 20s\nColors: red for gains (red-up)\nAlerts off\nLanguage: English',
     })
   })
 
@@ -329,9 +329,9 @@ describe('band', () => {
     await clock.settle()
 
     const cleared = await $.command.run({ command: 'stock', args: 'rm ALL' } as never)
-    expect(cleared).toMatchObject({ text: expect.stringContaining('自選股已清空 Watchlist cleared') })
+    expect(cleared).toMatchObject({ text: expect.stringContaining('Watchlist cleared') })
     const listed = await $.command.run({ command: 'stock', args: 'list' } as never)
-    expect(listed).toMatchObject({ text: '自選股 Watchlist：(空 empty)' })
+    expect(listed).toMatchObject({ text: 'Watchlist: (empty)' })
 
     const ui = await $.ui.mount({ plugin: 'stock-ticker', surface: 'terminal', ...BAND })
     expect(await ui.find({ type: 'Text', text: /台積電|NVDA/ })).toBeUndefined()
@@ -339,7 +339,37 @@ describe('band', () => {
 
     // ALL as a symbol still means Allstate.
     const added = await $.command.run({ command: 'stock', args: 'add ALL' } as never)
-    expect(added).toMatchObject({ text: '自選股 Watchlist：ALL' })
+    expect(added).toMatchObject({ text: 'Watchlist: ALL' })
+  })
+
+  test('/stock lang zh switches messages to Chinese, leaving symbols and names alone', async ($, on) => {
+    const { clock } = setup(on, ['2330'])
+    await $.session.start(START)
+    await clock.settle()
+
+    const switched = await $.command.run({ command: 'stock', args: 'lang zh' } as never)
+    expect(switched).toMatchObject({ text: '語言：中文' })
+    const added = await $.command.run({ command: 'stock', args: 'add NVDA $$' } as never)
+    expect(added).toMatchObject({ text: '自選股：2330 NVDA\n無法辨識：$$' })
+    const listed = await $.command.run({ command: 'stock', args: 'list' } as never)
+    expect(listed).toMatchObject({ text: expect.stringContaining('2330 台積電 2585') })
+
+    const back = await $.command.run({ command: 'stock', args: 'lang en' } as never)
+    expect(back).toMatchObject({ text: 'Language: English' })
+    const wrong = await $.command.run({ command: 'stock', args: 'lang fr' } as never)
+    expect(wrong).toMatchObject({ text: 'Use en or zh: /stock lang zh' })
+  })
+
+  test('a changed setting keeps the others on their defaults', async ($, on) => {
+    const { clock } = setup(on, ['2330'])
+    await $.session.start(START)
+    await clock.settle()
+
+    await $.command.run({ command: 'stock', args: 'refresh 5' } as never)
+    const shown = await $.command.run({ command: 'stock', args: 'settings' } as never)
+    expect(shown).toMatchObject({
+      text: 'Refresh: US 5s, Taiwan 15s\nColors: green for gains (green-up)\nAlert: 3%\nLanguage: English',
+    })
   })
 
   test('/stock off hides the band', async ($, on) => {

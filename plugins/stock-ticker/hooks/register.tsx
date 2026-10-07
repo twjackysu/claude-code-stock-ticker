@@ -1,7 +1,8 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
-import type { Quote, TickerSettings } from '../types'
+import type { Lang, Quote, QuoteError, TickerSettings } from '../types'
+import { MESSAGES } from './messages'
 import type { Market } from './quotes'
 import {
   DEFAULT_WATCHLIST,
@@ -18,12 +19,12 @@ import {
   yahooUrl,
 } from './quotes'
 
-const DEFAULT_SETTINGS: TickerSettings = { refreshSeconds: { tw: 15, us: 15 }, colors: 'green-up', alertPercent: 3 }
+const DEFAULT_SETTINGS: TickerSettings = { refreshSeconds: { tw: 15, us: 15 }, colors: 'green-up', alertPercent: 3, lang: 'en' }
 const MIN_REFRESH_SECONDS = 5
 
 const quotes = atom({ plugin: 'stock-ticker', key: 'quotes' } as const, [] as Quote[])
 const isHidden = atom({ plugin: 'stock-ticker', key: 'isHidden' } as const, false)
-const error = atom({ plugin: 'stock-ticker', key: 'error' } as const, null as string | null)
+const error = atom({ plugin: 'stock-ticker', key: 'error' } as const, null as QuoteError | null)
 const settings = atom({ plugin: 'stock-ticker', key: 'settings' } as const, DEFAULT_SETTINGS)
 
 const WATCHLIST_KEY = 'watchlist'
@@ -37,44 +38,55 @@ async function loadWatchlist($: EngineInterface): Promise<string[]> {
   return Array.isArray(stored) ? stored.filter((s): s is string => typeof s === 'string') : DEFAULT_WATCHLIST
 }
 
-/** The stored settings over the defaults, each field checked so a bad value falls back. */
-async function loadSettings($: EngineInterface): Promise<TickerSettings> {
-  const stored = ((await $.store.get(SETTINGS_KEY)) ?? {}) as Partial<TickerSettings>
+/**
+ * What the person changed, and nothing else: unchanged fields follow the
+ * defaults, so a later release's new default reaches them.
+ */
+type SettingsOverrides = {
+  refreshSeconds?: Partial<Record<Market, number>>
+  colors?: TickerSettings['colors']
+  alertPercent?: number
+  lang?: Lang
+}
+
+async function loadOverrides($: EngineInterface): Promise<SettingsOverrides> {
+  const stored = await $.store.get(SETTINGS_KEY)
+
+  return typeof stored === 'object' && stored !== null ? (stored as SettingsOverrides) : {}
+}
+
+/** The overrides over the defaults, each field checked so a bad value falls back. */
+function applyOverrides(o: SettingsOverrides): TickerSettings {
   const seconds = (value: unknown, fallback: number) =>
     typeof value === 'number' && value >= MIN_REFRESH_SECONDS ? value : fallback
 
   return {
     refreshSeconds: {
-      tw: seconds(stored.refreshSeconds?.tw, DEFAULT_SETTINGS.refreshSeconds.tw),
-      us: seconds(stored.refreshSeconds?.us, DEFAULT_SETTINGS.refreshSeconds.us),
+      tw: seconds(o.refreshSeconds?.tw, DEFAULT_SETTINGS.refreshSeconds.tw),
+      us: seconds(o.refreshSeconds?.us, DEFAULT_SETTINGS.refreshSeconds.us),
     },
-    colors: stored.colors === 'red-up' || stored.colors === 'green-up' ? stored.colors : DEFAULT_SETTINGS.colors,
-    alertPercent:
-      typeof stored.alertPercent === 'number' && stored.alertPercent >= 0 ? stored.alertPercent : DEFAULT_SETTINGS.alertPercent,
+    colors: o.colors === 'red-up' || o.colors === 'green-up' ? o.colors : DEFAULT_SETTINGS.colors,
+    alertPercent: typeof o.alertPercent === 'number' && o.alertPercent >= 0 ? o.alertPercent : DEFAULT_SETTINGS.alertPercent,
+    lang: o.lang === 'zh' || o.lang === 'en' ? o.lang : DEFAULT_SETTINGS.lang,
   }
 }
 
-async function saveSettings($: EngineInterface, change: (current: TickerSettings) => TickerSettings): Promise<TickerSettings> {
-  const next = change(await read($, settings))
-  await $.store.set(SETTINGS_KEY, next)
+/** Stores one change on top of the earlier ones and returns the settings now in force. */
+async function saveSettings($: EngineInterface, change: SettingsOverrides): Promise<TickerSettings> {
+  const stored = await loadOverrides($)
+  const merged: SettingsOverrides = {
+    ...stored,
+    ...change,
+    ...(change.refreshSeconds && { refreshSeconds: { ...stored.refreshSeconds, ...change.refreshSeconds } }),
+  }
+  await $.store.set(SETTINGS_KEY, merged)
+  const next = applyOverrides(merged)
   await update($, settings, () => next)
 
   return next
 }
 
 const MARKETS: readonly Market[] = ['tw', 'us']
-const MARKET_NAMES: Record<Market, string> = { tw: '台股 Taiwan', us: '美股 US' }
-// Replies read in Chinese then English, for both audiences.
-const listText = (codes: readonly string[]) => `自選股 Watchlist：${codes.join(' ') || '(空 empty)'}`
-const refreshText = (s: TickerSettings) => `更新秒數 Refresh：美股 US ${s.refreshSeconds.us}s，台股 Taiwan ${s.refreshSeconds.tw}s`
-const colorsText = (s: TickerSettings) => `漲跌顏色 Colors：${s.colors === 'red-up' ? '紅漲綠跌 red-up' : '綠漲紅跌 green-up'}`
-const alertText = (s: TickerSettings) =>
-  s.alertPercent > 0 ? `通知門檻 Alert：${s.alertPercent}%` : '通知已關閉 Alerts off'
-const USAGE = [
-  '用法 Usage：',
-  '/stock add 2330 NVDA | /stock rm 2330 | /stock rm all | /stock list | /stock on | /stock off',
-  '/stock refresh 5 | /stock refresh tw 10 | /stock color green-up | /stock alert 5 | /stock settings',
-].join('\n')
 
 /** This session's polling per market, and which big-move toasts already fired today. */
 type Poll = {
@@ -150,7 +162,7 @@ async function refresh($: EngineInterface, poll: Poll, market: Market, { force =
     notifyBigMoves($, poll, (await read($, settings)).alertPercent, fresh, now)
   } catch (reason) {
     const message = reason instanceof Error ? reason.message : String(reason)
-    await update($, error, () => `${MARKET_NAMES[market]}：${message}`)
+    await update($, error, () => ({ market, message }))
   } finally {
     poll.isFetching[market] = false
   }
@@ -191,12 +203,12 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'stock',
-      description: 'Stock ticker: add/remove Taiwan or US symbols, change refresh, colors and alerts',
-      argumentHint: 'add 2330 NVDA | rm 2330 | rm all | list | refresh 5 | color green-up | alert 5 | settings | on | off',
+      description: 'Stock ticker: add/remove Taiwan or US symbols, change refresh, colors, alerts and language',
+      argumentHint: 'add 2330 NVDA | rm 2330 | rm all | list | refresh 5 | color red-up | alert 5 | lang zh | settings | on | off',
     })
     const wasHidden = (await $.store.get(HIDDEN_KEY)) === true
     await update($, isHidden, () => wasHidden)
-    const loaded = await loadSettings($)
+    const loaded = applyOverrides(await loadOverrides($))
     await update($, settings, () => loaded)
 
     void refreshAll($, poll, { force: true })
@@ -208,6 +220,7 @@ export const register: Register = on => {
   on('command.run', { command: 'stock' }, async ($, e) => {
     const [verb = 'list', ...rest] = e.args.trim().split(/\s+/).filter(Boolean)
     const watchlist = await loadWatchlist($)
+    const t = MESSAGES[(await read($, settings)).lang]
 
     // Checked before symbols: ALL is also Allstate's ticker, which `add ALL` still adds.
     const isRemove = verb === 'rm' || verb === 'remove'
@@ -215,7 +228,7 @@ export const register: Register = on => {
       await $.store.set(WATCHLIST_KEY, [])
       await refreshAll($, poll, { force: true })
 
-      return { text: '自選股已清空 Watchlist cleared。/stock add 2330 NVDA 加入新的 to add more.' }
+      return { text: t.cleared }
     }
 
     if (verb === 'add' || isRemove) {
@@ -230,12 +243,12 @@ export const register: Register = on => {
       await refreshAll($, poll, { force: true })
       const absent = verb === 'add' ? [] : valid.filter(c => !watchlist.includes(c))
       const notes = [
-        invalid.length > 0 ? `無法辨識 Unknown：${invalid.join(' ')}` : '',
-        absent.length > 0 ? `不在自選股 Not in watchlist：${absent.join(' ')}` : '',
-        overLimit.length > 0 ? `最多 ${MAX_SYMBOLS} 檔，未加入 Over the ${MAX_SYMBOLS}-symbol limit：${overLimit.join(' ')}` : '',
+        invalid.length > 0 ? t.unknown(invalid) : '',
+        absent.length > 0 ? t.notInWatchlist(absent) : '',
+        overLimit.length > 0 ? t.overLimit(MAX_SYMBOLS, overLimit) : '',
       ].filter(Boolean)
 
-      return { text: [listText(nextList), ...notes].join('\n') }
+      return { text: [t.watchlist(nextList), ...notes].join('\n') }
     }
 
     if (verb === 'refresh') {
@@ -244,47 +257,53 @@ export const register: Register = on => {
       const market: Market = named ?? 'us'
       const seconds = Number(named ? rest[1] : rest[0])
       if (!Number.isFinite(seconds) || seconds < MIN_REFRESH_SECONDS) {
-        return { text: `秒數要 ${MIN_REFRESH_SECONDS} 以上 Seconds must be ${MIN_REFRESH_SECONDS} or more：/stock refresh 5 | /stock refresh tw 10` }
+        return { text: t.refreshInvalid(MIN_REFRESH_SECONDS) }
       }
-      const next = await saveSettings($, s => ({ ...s, refreshSeconds: { ...s.refreshSeconds, [market]: seconds } }))
+      const next = await saveSettings($, { refreshSeconds: { [market]: seconds } })
       startTimers($, poll, next)
 
-      return { text: refreshText(next) }
+      return { text: t.refresh(next) }
     }
 
     if (verb === 'color' || verb === 'colors') {
       const choice = rest[0]?.toLowerCase()
       if (choice !== 'red-up' && choice !== 'green-up') {
-        return { text: '用 green-up（綠漲紅跌）或 red-up（紅漲綠跌） Use green-up or red-up：/stock color red-up' }
+        return { text: t.colorsInvalid }
       }
-      const next = await saveSettings($, s => ({ ...s, colors: choice }))
 
-      return { text: colorsText(next) }
+      return { text: t.colors(await saveSettings($, { colors: choice })) }
     }
 
     if (verb === 'alert') {
       const percent = Number(rest[0])
       if (!Number.isFinite(percent) || percent < 0) {
-        return { text: '門檻要 0 以上，0 關閉 Use 0 or more, 0 turns alerts off：/stock alert 5' }
+        return { text: t.alertInvalid }
       }
-      const next = await saveSettings($, s => ({ ...s, alertPercent: percent }))
 
-      return { text: alertText(next) }
+      return { text: t.alert(await saveSettings($, { alertPercent: percent })) }
+    }
+
+    if (verb === 'lang') {
+      const choice = rest[0]?.toLowerCase()
+      const lang: Lang | undefined =
+        choice === 'en' ? 'en' : choice === 'zh' || choice === 'zh-tw' || choice === '中文' ? 'zh' : undefined
+      if (!lang) return { text: t.langInvalid }
+      await saveSettings($, { lang })
+
+      return { text: MESSAGES[lang].lang }
     }
 
     if (verb === 'settings') {
       const current = await read($, settings)
 
-      return { text: [refreshText(current), colorsText(current), alertText(current)].join('\n') }
+      return { text: [t.refresh(current), t.colors(current), t.alert(current), t.lang].join('\n') }
     }
 
     if (verb === 'on' || verb === 'off') {
       await $.store.set(HIDDEN_KEY, verb === 'off')
       await update($, isHidden, () => verb === 'off')
 
-      return {
-        text: verb === 'off' ? '報價列已隱藏 Ticker hidden。/stock on 重新顯示 to show it again.' : '報價列已顯示 Ticker shown。',
-      }
+      return { text: verb === 'off' ? t.hidden : t.shown }
     }
 
     if (verb === 'list') {
@@ -293,10 +312,10 @@ export const register: Register = on => {
         [q.symbol, q.label === q.symbol ? '' : q.label, formatPrice(q.price), formatChange(q.changePercent)].filter(Boolean).join(' '),
       )
 
-      return { text: lines.length > 0 ? lines.join('\n') : listText(watchlist) }
+      return { text: lines.length > 0 ? lines.join('\n') : t.watchlist(watchlist) }
     }
 
-    return { text: USAGE }
+    return { text: t.usage }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -304,11 +323,15 @@ export const register: Register = on => {
 
     const list = await read($, quotes)
     const failure = await read($, error)
-    const isRedUp = (await read($, settings)).colors === 'red-up'
+    const current = await read($, settings)
+    const isRedUp = current.colors === 'red-up'
     const { Box, Text } = $.ui.resolve(e)
 
     if (list.length === 0) {
-      return failure === null ? next(e) : <Text dimColor>報價暫時無法取得 Quotes unavailable（{failure}）</Text>
+      if (failure === null) return next(e)
+      const t = MESSAGES[current.lang]
+
+      return <Text dimColor>{t.unavailable(`${t.market[failure.market]}: ${failure.message}`)}</Text>
     }
 
     // Keep whole quotes that fit on one row; never cut one in half. When some

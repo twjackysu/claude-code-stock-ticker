@@ -49,6 +49,7 @@ Change them with `/stock`; they apply at once and are kept across sessions:
 /stock refresh tw 10        Taiwan quotes every 10 seconds (default 15, minimum 5)
 /stock color red-up         red for gains, as in Taiwan; green-up (the default) is green for gains
 /stock alert 5              toast once a day when a symbol moves 5% or more (default 3, 0 turns it off)
+/stock lang zh              messages in Chinese (en for English, the default)
 /stock settings             show the current settings
 ```
 

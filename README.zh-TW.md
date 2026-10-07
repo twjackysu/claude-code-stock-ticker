@@ -30,6 +30,8 @@
 
 ## 用法
 
+提示訊息預設是英文，先輸入 `/stock lang zh` 就會改成中文。
+
 ```
 /stock add 2330 NVDA 費半   加入自選股（數字是台股，英文是美股）
 /stock rm 2330              移除
@@ -55,6 +57,7 @@
 /stock refresh tw 10        台股每 10 秒更新（預設 15 秒，最少 5 秒）
 /stock color red-up         紅漲綠跌（台股習慣）；green-up（預設）是綠漲紅跌
 /stock alert 5              漲跌超過 5% 時通知，每檔每天一次（預設 3，0 關閉）
+/stock lang zh              提示訊息改成中文（en 是英文，預設）
 /stock settings             顯示目前設定
 ```
 
