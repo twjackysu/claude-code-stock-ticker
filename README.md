@@ -38,7 +38,7 @@ Requires Claude Code 2.1.287 or later.
 /stock off                  hide (/stock on to show)
 ```
 
-The default watchlist is SPY, QQQ, NVDA and AAPL, up to 10 symbols.
+The default watchlist is SPY, QQQ, NVDA and AAPL, up to 10 symbols. The band wraps to fit the window, up to three rows; anything beyond shows as +N.
 
 ## Settings
 

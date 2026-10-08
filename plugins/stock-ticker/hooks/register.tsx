@@ -31,6 +31,8 @@ const WATCHLIST_KEY = 'watchlist'
 const HIDDEN_KEY = 'hidden'
 const SETTINGS_KEY = 'settings'
 const MAX_SYMBOLS = 10
+// The band never grows past this many rows, so it stays out of the way of the prompt.
+const MAX_ROWS = 3
 
 async function loadWatchlist($: EngineInterface): Promise<string[]> {
   const stored = await $.store.get(WATCHLIST_KEY)
@@ -181,6 +183,27 @@ function notifyBigMoves($: EngineInterface, poll: Poll, alertPercent: number, li
     poll.alerted.add(id)
     $.ui.toast(`${quote.label} ${formatPrice(quote.price)} ${formatChange(quote.changePercent)}`)
   }
+}
+
+/**
+ * Quotes packed into rows of `columns` cells, at most `maxRows` of them. Each
+ * row takes whole quotes; when some are left over, the last row keeps room
+ * for a "+N" saying how many.
+ */
+function layoutRows(list: Quote[], columns: number, maxRows: number, gap: number): { rows: Quote[][]; hidden: number } {
+  const rows: Quote[][] = []
+  let rest = list
+  while (rest.length > 0 && rows.length < maxRows) {
+    const isLast = rows.length === maxRows - 1
+    let row = fitRow(rest, columns, gap)
+    if (isLast && row.length < rest.length) row = fitRow(rest, columns - 4, gap)
+    // A quote wider than the whole row still gets a row of its own.
+    if (row.length === 0) row = rest.slice(0, 1)
+    rows.push(row)
+    rest = rest.slice(row.length)
+  }
+
+  return { rows, hidden: rest.length }
 }
 
 /** The leading quotes that fit in `columns` cells, each followed by `gap` cells. */
@@ -334,12 +357,9 @@ export const register: Register = on => {
       return <Text dimColor>{t.unavailable(`${t.market[failure.market]}: ${failure.message}`)}</Text>
     }
 
-    // Keep whole quotes that fit on one row; never cut one in half. When some
-    // do not fit, leave room for a "+N" saying how many are left out.
+    // Wraps to the width this surface has now; a resize draws it again.
     const gap = 3
-    let shown = fitRow(list, e.props.bodyColumns, gap)
-    if (shown.length < list.length) shown = fitRow(list, e.props.bodyColumns - 4, gap)
-    const hidden = list.length - shown.length
+    const { rows, hidden } = layoutRows(list, e.props.bodyColumns, Math.max(1, Math.min(MAX_ROWS, e.props.maxRows)), gap)
 
     const colorOf = (percent: number) => {
       if (percent === 0) return undefined
@@ -347,17 +367,21 @@ export const register: Register = on => {
     }
 
     return (
-      <Box flexDirection="row">
-        {shown.map(quote => (
-          <Box key={quote.symbol} marginRight={gap}>
-            <Text>{quote.label} </Text>
-            <Text bold>{formatPrice(quote.price)} </Text>
-            <Text color={colorOf(quote.changePercent)} dimColor={quote.changePercent === 0}>
-              {formatChange(quote.changePercent)}
-            </Text>
+      <Box flexDirection="column">
+        {rows.map((row, index) => (
+          <Box key={`row-${index}`} flexDirection="row">
+            {row.map(quote => (
+              <Box key={quote.symbol} marginRight={gap}>
+                <Text>{quote.label} </Text>
+                <Text bold>{formatPrice(quote.price)} </Text>
+                <Text color={colorOf(quote.changePercent)} dimColor={quote.changePercent === 0}>
+                  {formatChange(quote.changePercent)}
+                </Text>
+              </Box>
+            ))}
+            {index === rows.length - 1 && hidden > 0 ? <Text dimColor>+{hidden}</Text> : null}
           </Box>
         ))}
-        {hidden > 0 ? <Text dimColor>+{hidden}</Text> : null}
       </Box>
     )
   })

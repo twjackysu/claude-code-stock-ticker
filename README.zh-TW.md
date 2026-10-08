@@ -40,7 +40,9 @@
 /stock off                  隱藏（/stock on 顯示）
 ```
 
-預設自選股是 SPY、QQQ、NVDA、AAPL，最多 10 檔。想看台股的話：
+預設自選股是 SPY、QQQ、NVDA、AAPL，最多 10 檔。報價列會依視窗寬度自動換行，最多 3 行，放不下的顯示成 +N。
+
+想看台股的話：
 
 ```
 /stock add 加權 櫃買         加權指數、櫃買指數

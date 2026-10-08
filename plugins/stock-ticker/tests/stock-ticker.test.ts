@@ -203,18 +203,36 @@ describe('band', () => {
     expect(added).toMatchObject({ text: expect.stringContaining('1109 2330') })
   })
 
-  test('a narrow band shows how many quotes did not fit', async ($, on) => {
+  test('a narrow band wraps to more rows', async ($, on) => {
     const { clock } = setup(on, ['2330', 't00', '2317'])
     await $.session.start(START)
     await clock.settle()
 
-    // Room for one quote plus the "+N" marker.
+    // Room for one quote a row.
     const narrow = { ...BAND, props: { ...BAND.props, bodyColumns: 28 } }
     const ui = await $.ui.mount({ plugin: 'stock-ticker', surface: 'terminal', ...narrow })
-    expect(await ui.find({ type: 'Text', text: /台積電/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /加權/ })).toBeUndefined()
+    for (const name of [/台積電/, /加權/, /鴻海/]) expect(await ui.find({ type: 'Text', text: name })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^\+/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test('the band stops at three rows and says how many quotes did not fit', async ($, on) => {
+    const { clock } = setup(on, ['2330', 't00', '2317', 'NVDA', '^SOX'])
+    await $.session.start(START)
+    await clock.settle()
+
+    const narrow = { ...BAND, props: { ...BAND.props, bodyColumns: 28 } }
+    const ui = await $.ui.mount({ plugin: 'stock-ticker', surface: 'terminal', ...narrow })
+    expect(await ui.find({ type: 'Text', text: /鴻海/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /NVDA/ })).toBeUndefined()
     expect(await ui.find({ type: 'Text', text: '+2' })).toBeDefined()
     await ui.unmount()
+
+    // A band the surface gives fewer rows stops there.
+    const short = { ...BAND, props: { ...BAND.props, bodyColumns: 28, maxRows: 1 } }
+    const small = await $.ui.mount({ plugin: 'stock-ticker', surface: 'terminal', ...short })
+    expect(await small.find({ type: 'Text', text: '+4' })).toBeDefined()
+    await small.unmount()
   })
 
   test('a terminal session keeps polling however long it sits idle', async ($, on) => {
